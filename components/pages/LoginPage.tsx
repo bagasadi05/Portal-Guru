@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,7 +30,7 @@ const LoginPage: React.FC = () => {
   
   useEffect(() => {
     if (session) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [session, navigate]);
   
@@ -125,8 +126,8 @@ const LoginPage: React.FC = () => {
                 </div>
                 
                 <div className="text-center mt-6 border-t border-white/10 pt-4">
-                     <Link to="/portal-login" className="form-links a">
-                        Masuk sebagai Orang Tua/Siswa
+                     <Link to="/" className="form-links a">
+                        Kembali ke pemilihan peran
                     </Link>
                 </div>
             </div>

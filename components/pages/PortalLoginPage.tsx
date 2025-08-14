@@ -21,28 +21,22 @@ const PortalLoginPage: React.FC = () => {
         return;
     }
 
-    // Gunakan pencarian case-insensitive dan pilih access_code yang sebenarnya
-    const { data: students, error: fetchError } = await supabase
-        .from('students')
-        .select('id, access_code') // Pilih kode asli untuk disimpan di sesi
-        .ilike('access_code', code); // Gunakan pencocokan case-insensitive
+    // Menggunakan fungsi RPC baru untuk validasi yang aman dan case-insensitive
+    const { data: students, error: rpcError } = await supabase.rpc(
+        'verify_access_code',
+        { access_code_param: code }
+    );
     
     setLoading(false);
 
-    if (fetchError) {
-        console.error("Supabase portal login error:", fetchError);
+    if (rpcError) {
+        console.error("Supabase portal login error:", rpcError);
         setError("Terjadi kesalahan saat memverifikasi kode. Silakan coba lagi nanti.");
         return;
     }
 
-    if (students.length === 0) {
+    if (!students || students.length === 0) {
         setError("Kode akses tidak valid. Pastikan Anda memasukkan kode yang benar dari guru.");
-        return;
-    }
-
-    if (students.length > 1) {
-        console.warn(`Duplicate access code found: ${code}`);
-        setError("Ditemukan beberapa akun dengan kode ini. Harap hubungi guru Anda untuk mendapatkan kode baru.");
         return;
     }
     
@@ -53,7 +47,6 @@ const PortalLoginPage: React.FC = () => {
         sessionStorage.setItem('portal_access_code', student.access_code);
         navigate(`/portal/${student.id}`);
     } else {
-        // Ini seharusnya tidak terjadi jika ilike menemukan kecocokan, tetapi sebagai pengaman.
         setError("Terjadi kesalahan internal. Kode akses tidak dapat diverifikasi.");
     }
   };
@@ -109,8 +102,8 @@ const PortalLoginPage: React.FC = () => {
             </form>
             
             <div className="text-center mt-6 border-t border-white/10 pt-4">
-                 <Link to="/login" className="form-links a">
-                    Masuk sebagai Guru
+                 <Link to="/" className="form-links a">
+                    Kembali ke pemilihan peran
                 </Link>
             </div>
         </div>

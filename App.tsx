@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import OfflineBanner from './components/OfflineBanner';
 
 // Lazy load pages for code splitting using path aliases
+const RoleSelectionPage = lazy(() => import('@/components/pages/RoleSelectionPage'));
 const LoginPage = lazy(() => import('@/components/pages/LoginPage'));
 const DashboardPage = lazy(() => import('@/components/pages/DashboardPage'));
 const AttendancePage = lazy(() => import('@/components/pages/AttendancePage'));
@@ -45,7 +46,7 @@ const PrivateRoutes = () => {
       <Outlet />
     </Layout>
   ) : (
-    <Navigate to="/login" replace />
+    <Navigate to="/guru-login" replace />
   );
 };
 
@@ -74,12 +75,13 @@ function App() {
               <Suspense fallback={loadingSpinner}>
                 <HashRouter>
                   <Routes>
-                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/" element={<RoleSelectionPage />} />
+                    <Route path="/guru-login" element={<LoginPage />} />
                     <Route path="/portal-login" element={<PortalLoginPage />} />
                     <Route path="/portal/:studentId" element={<ParentPortalPage />} />
                     
                     <Route element={<PrivateRoutes />}>
-                      <Route path="/" element={<DashboardPage />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/absensi" element={<AttendancePage />} />
                       <Route path="/siswa" element={<StudentsPage />} />
                       <Route path="/siswa/:studentId" element={<StudentDetailPage />} />

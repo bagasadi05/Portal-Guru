@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -9,7 +10,7 @@ import AiChatAssistant from './AiChatAssistant';
 import { useSyncQueue } from '../hooks/useSyncQueue';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: HomeIcon },
+  { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { href: '/absensi', label: 'Absensi', icon: ClipboardIcon },
   { href: '/siswa', label: 'Siswa', icon: UsersIcon },
   { href: '/jadwal', label: 'Jadwal', icon: CalendarIcon },
@@ -31,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
             onLinkClick();
         }
         await logout();
-        navigate('/login', { replace: true });
+        navigate('/', { replace: true });
     };
 
     return (
@@ -63,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
                     <NavLink
                         key={item.href}
                         to={item.href}
-                        end={item.href === '/'}
+                        end={item.href === '/dashboard'}
                         onClick={onLinkClick}
                         className={({ isActive }) =>
                           `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 transform hover:bg-white/10 hover:translate-x-1 text-gray-300 hover:text-white group ${
@@ -100,7 +101,7 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
     const handleLogout = async () => {
         setProfileMenuOpen(false);
         await logout();
-        navigate('/login', { replace: true });
+        navigate('/', { replace: true });
     };
 
     // Close dropdown on outside click
@@ -194,7 +195,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
     const location = useLocation();
-    const isFullScreenPage = ['/input-massal', '/tugas', '/jadwal', '/siswa', '/absensi', '/'].includes(location.pathname);
+    const isFullScreenPage = ['/input-massal', '/tugas', '/jadwal', '/siswa', '/absensi', '/dashboard'].includes(location.pathname);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
