@@ -109,6 +109,48 @@ const ReportPage: React.FC = () => {
         enabled: !!studentId && !!user,
     });
     
+    const handleGenerateAiNote = async (showToast = true, attendanceSummaryForNote?: typeof editableAttendanceSummary) => {
+        const attendanceData = attendanceSummaryForNote || editableAttendanceSummary;
+        if (!data) return;
+        setIsGeneratingNote(true);
+        if (showToast) {
+            toast.info("AI sedang merangkum catatan guru...");
+        }
+        try {
+            const systemInstruction = `Anda adalah seorang guru wali kelas yang bijaksana, suportif, dan profesional. Tugas Anda adalah menulis paragraf "Catatan Wali Kelas" untuk rapor siswa. Catatan ini harus komprehensif, merangkum performa siswa secara holistik, dan memberikan motivasi. Tulis dalam satu paragraf yang mengalir (3-5 kalimat). Hindari penggunaan daftar atau poin.`;
+            
+            const academicSummary = data.academicRecords.length > 0
+                ? `Secara akademis, nilai rata-ratanya adalah ${Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)}. Mata pelajaran terkuatnya adalah ${[...data.academicRecords].sort((a, b) => b.score - a.score)[0]?.subject}.`
+                : 'Belum ada data nilai akademik yang signifikan.';
+
+            const behaviorSummary = data.violations.length > 0
+                ? `Dari segi perilaku, terdapat ${data.violations.length} catatan pelanggaran dengan total ${data.violations.reduce((sum, v) => sum + v.points, 0)} poin.`
+                : 'Siswa menunjukkan perilaku yang sangat baik tanpa catatan pelanggaran.';
+
+            const prompt = `Buatkan draf "Catatan Wali Kelas" untuk siswa bernama ${data.student.name}.
+            
+            Berikut adalah data ringkas sebagai dasar analisis Anda:
+            - **Analisis Akademik:** ${academicSummary}
+            - **Analisis Perilaku:** ${behaviorSummary}
+            - **Kehadiran:** Sakit ${attendanceData.Sakit} hari, Izin ${attendanceData.Izin} hari, Alpha ${attendanceData.Alpha} hari.
+            
+            Tugas Anda:
+            Sintesis semua informasi di atas menjadi satu paragraf catatan wali kelas yang kohesif. Pastikan catatan tersebut mencakup evaluasi umum, menyoroti kekuatan atau area yang perlu ditingkatkan, dan diakhiri dengan kalimat rekomendasi atau motivasi yang positif.
+            `;
+
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction }});
+            setTeacherNote(response.text.replace(/\\n/g, ' '));
+            if (showToast) {
+                toast.success("Catatan guru berhasil dibuat oleh AI!");
+            }
+        } catch (err) {
+            toast.error("Gagal membuat catatan guru.");
+            console.error(err);
+        } finally {
+            setIsGeneratingNote(false);
+        }
+    };
+    
     useEffect(() => {
         if (data) {
             setStudentInfo({
@@ -143,7 +185,7 @@ const ReportPage: React.FC = () => {
             }
             
             if (teacherNote === '') {
-                handleGenerateAiNote(false); // Auto-generate note on first load without toast
+                handleGenerateAiNote(false, attendanceSum);
             }
         }
     }, [data]);
@@ -187,48 +229,6 @@ const ReportPage: React.FC = () => {
         setEditableQuizPoints(prev => prev.filter((_, i) => i !== index));
     };
 
-
-    const handleGenerateAiNote = async (showToast = true) => {
-        if (!data) return;
-        setIsGeneratingNote(true);
-        if (showToast) {
-            toast.info("AI sedang merangkum catatan guru...");
-        }
-        try {
-            const systemInstruction = `Anda adalah seorang guru wali kelas yang bijaksana, suportif, dan profesional. Tugas Anda adalah menulis paragraf "Catatan Wali Kelas" untuk rapor siswa. Catatan ini harus komprehensif, merangkum performa siswa secara holistik, dan memberikan motivasi. Tulis dalam satu paragraf yang mengalir (3-5 kalimat). Hindari penggunaan daftar atau poin.`;
-            
-            const academicSummary = data.academicRecords.length > 0
-                ? `Secara akademis, nilai rata-ratanya adalah ${Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)}. Mata pelajaran terkuatnya adalah ${[...data.academicRecords].sort((a, b) => b.score - a.score)[0]?.subject}.`
-                : 'Belum ada data nilai akademik yang signifikan.';
-
-            const behaviorSummary = data.violations.length > 0
-                ? `Dari segi perilaku, terdapat ${data.violations.length} catatan pelanggaran dengan total ${data.violations.reduce((sum, v) => sum + v.points, 0)} poin.`
-                : 'Siswa menunjukkan perilaku yang sangat baik tanpa catatan pelanggaran.';
-
-            const prompt = `Buatkan draf "Catatan Wali Kelas" untuk siswa bernama ${data.student.name}.
-            
-            Berikut adalah data ringkas sebagai dasar analisis Anda:
-            - **Analisis Akademik:** ${academicSummary}
-            - **Analisis Perilaku:** ${behaviorSummary}
-            - **Kehadiran:** Sakit ${editableAttendanceSummary.Sakit} hari, Izin ${editableAttendanceSummary.Izin} hari, Alpha ${editableAttendanceSummary.Alpha} hari.
-            
-            Tugas Anda:
-            Sintesis semua informasi di atas menjadi satu paragraf catatan wali kelas yang kohesif. Pastikan catatan tersebut mencakup evaluasi umum, menyoroti kekuatan atau area yang perlu ditingkatkan, dan diakhiri dengan kalimat rekomendasi atau motivasi yang positif.
-            `;
-
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction }});
-            setTeacherNote(response.text.replace(/\\n/g, ' '));
-            if (showToast) {
-                toast.success("Catatan guru berhasil dibuat oleh AI!");
-            }
-        } catch (err) {
-            toast.error("Gagal membuat catatan guru.");
-            console.error(err);
-        } finally {
-            setIsGeneratingNote(false);
-        }
-    };
-    
     const generatePdf = () => {
         if (!data) { toast.error("Data laporan belum siap."); return; }
         setIsExporting(true); toast.info("Membuat file PDF...");
@@ -349,7 +349,7 @@ const ReportPage: React.FC = () => {
                 <Button onClick={generatePdf} disabled={isExporting} className="w-full sm:w-auto">{isExporting ? 'Membuat PDF...' : <><PrinterIcon className="w-4 h-4 mr-2" /> Cetak / Simpan PDF</>}</Button>
             </div>
 
-            <div id="report-card" className="bg-white text-black shadow-2xl max-w-4xl mx-auto font-serif p-10 sm:p-12 md:p-16">
+            <div id="report-card" className="bg-white text-black dark:text-black shadow-2xl max-w-4xl mx-auto font-serif p-10 sm:p-12 md:p-16">
                 <header className="text-center mb-8">
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-wider">{reportHeader.title}</h1>
                     <h2 className="text-xl sm:text-2xl font-semibold">{reportHeader.schoolName}</h2>
@@ -506,7 +506,7 @@ const ReportPage: React.FC = () => {
                 </section>
                 
                 <section className="mt-6">
-                    <div className="flex justify-between items-center mb-2 print:hidden"><h3 className="font-bold text-base">D. Catatan Wali Kelas</h3><Button size="sm" variant="outline" onClick={() => handleGenerateAiNote()} disabled={isGeneratingNote}>{isGeneratingNote ? 'Membuat...' : <><BrainCircuitIcon className="w-4 h-4 mr-2" /> Buat dengan AI</>}</Button></div>
+                    <div className="flex justify-between items-center mb-2 print:hidden"><h3 className="font-bold text-base">D. Catatan Wali Kelas</h3><Button size="sm" variant="outline" onClick={() => handleGenerateAiNote(true)} disabled={isGeneratingNote}>{isGeneratingNote ? 'Membuat...' : <><BrainCircuitIcon className="w-4 h-4 mr-2" /> Buat dengan AI</>}</Button></div>
                     <h3 className="font-bold text-base mb-2 hidden print:block">D. Catatan Wali Kelas</h3>
                     <div className="border border-black p-3 text-sm min-h-[80px]">
                         <textarea value={teacherNote} onChange={(e) => setTeacherNote(e.target.value)} className="w-full h-full bg-transparent focus:bg-yellow-100 p-1 rounded-sm font-serif text-justify"/>

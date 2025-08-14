@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
-import { KeyRoundIcon } from '../Icons';
 
 const PortalLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,32 +13,48 @@ const PortalLoginPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    if (!accessCode.trim()) {
+    const code = accessCode.trim();
+
+    if (!code) {
         setError("Kode akses tidak boleh kosong.");
         setLoading(false);
         return;
     }
 
-    try {
-        const { data: student, error: fetchError } = await supabase
-            .from('students')
-            .select('id')
-            .eq('access_code', accessCode.trim())
-            .single<{ id: string }>();
+    // Gunakan pencarian case-insensitive dan pilih access_code yang sebenarnya
+    const { data: students, error: fetchError } = await supabase
+        .from('students')
+        .select('id, access_code') // Pilih kode asli untuk disimpan di sesi
+        .ilike('access_code', code); // Gunakan pencocokan case-insensitive
+    
+    setLoading(false);
 
-        if (fetchError || !student) {
-            throw new Error("Kode akses tidak valid. Pastikan Anda memasukkan kode yang benar dari guru.");
-        }
+    if (fetchError) {
+        console.error("Supabase portal login error:", fetchError);
+        setError("Terjadi kesalahan saat memverifikasi kode. Silakan coba lagi nanti.");
+        return;
+    }
 
-        // Store code in sessionStorage for the portal session
-        sessionStorage.setItem('portal_access_code', accessCode.trim());
-        
+    if (students.length === 0) {
+        setError("Kode akses tidak valid. Pastikan Anda memasukkan kode yang benar dari guru.");
+        return;
+    }
+
+    if (students.length > 1) {
+        console.warn(`Duplicate access code found: ${code}`);
+        setError("Ditemukan beberapa akun dengan kode ini. Harap hubungi guru Anda untuk mendapatkan kode baru.");
+        return;
+    }
+    
+    const student = students[0];
+
+    // Simpan kode yang BENAR dari database ke sessionStorage
+    if (student.access_code) {
+        sessionStorage.setItem('portal_access_code', student.access_code);
         navigate(`/portal/${student.id}`);
-
-    } catch (err: any) {
-        setError(err.message);
-    } finally {
-        setLoading(false);
+    } else {
+        // Ini seharusnya tidak terjadi jika ilike menemukan kecocokan, tetapi sebagai pengaman.
+        setError("Terjadi kesalahan internal. Kode akses tidak dapat diverifikasi.");
     }
   };
 
@@ -65,16 +80,22 @@ const PortalLoginPage: React.FC = () => {
             
             <form onSubmit={handleSubmit}>
                 <div className="form-group-icon">
-                    <KeyRoundIcon className="icon h-5 w-5" />
                     <input 
                         type="text" 
-                        placeholder="Kode Akses Unik" 
+                        placeholder="KODE AKSES" 
                         required 
                         value={accessCode} 
-                        onChange={e => setAccessCode(e.target.value)} 
+                        onChange={e => setAccessCode(e.target.value.toUpperCase())} 
                         onFocus={handleFocus} 
                         onBlur={handleBlur}
                         aria-label="Kode Akses"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck="false"
+                        maxLength={6}
+                        className="text-center font-bold tracking-[0.3em] uppercase"
+                        style={{ paddingLeft: '15px', paddingRight: '15px' }}
                     />
                 </div>
                 

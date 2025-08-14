@@ -226,12 +226,11 @@ const TasksPage: React.FC = () => {
 
     const taskMutation = useMutation({
         mutationFn: async (taskData: TaskMutationVars) => {
-            const { mode, data, id } = taskData;
-            if (mode === 'add') {
-                const { error } = await supabase.from('tasks').insert(data);
+            if (taskData.mode === 'add') {
+                const { error } = await supabase.from('tasks').insert(taskData.data);
                 if (error) throw error;
-            } else if (id) {
-                const { error } = await supabase.from('tasks').update(data).eq('id', id);
+            } else { // mode is 'edit' or 'status_change'
+                const { error } = await supabase.from('tasks').update(taskData.data).eq('id', taskData.id);
                 if (error) throw error;
             }
         },
