@@ -256,6 +256,25 @@ export interface Database {
           absent_percentage: number
         }[]
       }
+      get_student_portal_data: {
+        Args: {
+          student_id_param: string;
+          access_code_param: string;
+        };
+        Returns: {
+          student: {
+            id: string;
+            name: string;
+            avatar_url: string;
+            classes: { name: string };
+          };
+          reports: { id: string; date: string; title: string; notes: string }[];
+          attendanceRecords: { id: string; date: string; status: string; notes: string | null }[];
+          academicRecords: { id: string; subject: string; score: number; notes: string; created_at: string }[];
+          violations: { id: string; date: string; description: string; points: number }[];
+          quizPoints: { id: number; quiz_date: string; subject: string; quiz_name: string }[];
+        };
+      };
       get_weekly_attendance_summary: {
         Args: Record<string, unknown>
         Returns: {

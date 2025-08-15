@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { AttendanceStatus } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, FileTextIcon, UserCircleIcon, BarChartIcon, PencilIcon, TrashIcon, BookOpenIcon, SparklesIcon, ClockIcon, TrendingUpIcon, PlusIcon, BrainCircuitIcon, CameraIcon, ShieldAlertIcon, KeyRoundIcon, CopyIcon, CopyCheckIcon } from '../Icons';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, FileTextIcon, UserCircleIcon, BarChartIcon, PencilIcon, TrashIcon, BookOpenIcon, SparklesIcon, ClockIcon, TrendingUpIcon, PlusIcon, BrainCircuitIcon, CameraIcon, ShieldAlertIcon, KeyRoundIcon, CopyIcon, CopyCheckIcon, MessageSquareIcon, SendIcon, UsersIcon } from '../Icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
 import { Modal } from '../ui/Modal';
 import { Type } from '@google/genai';
@@ -26,6 +26,7 @@ type AttendanceRow = Database['public']['Tables']['attendance']['Row'];
 type AcademicRecordRow = Database['public']['Tables']['academic_records']['Row'];
 type ViolationRow = Database['public']['Tables']['violations']['Row'];
 type QuizPointRow = Database['public']['Tables']['quiz_points']['Row'];
+type CommunicationRow = Database['public']['Tables']['communications']['Row'];
 
 type StudentWithClass = StudentRow & { classes: Pick<ClassRow, 'id' | 'name'> | null };
 type StudentDetailsData = {
@@ -36,6 +37,7 @@ type StudentDetailsData = {
     quizPoints: QuizPointRow[],
     violations: ViolationRow[],
     classes: ClassRow[],
+    communications: CommunicationRow[],
 };
 
 type ModalState = 
@@ -49,9 +51,9 @@ type ModalState =
 
 type AiSummary = {
     general_evaluation: string;
-    strengths: string;
-    development_focus: string;
-    recommendations: string;
+    strengths: string[];
+    development_focus: string[];
+    recommendations: string[];
 };
 
 // Mutation variable types
@@ -60,6 +62,104 @@ type ReportMutationVars = { operation: 'add', data: Database['public']['Tables']
 type AcademicMutationVars = { operation: 'add', data: Database['public']['Tables']['academic_records']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['academic_records']['Update'], id: string };
 type QuizMutationVars = { operation: 'add', data: Database['public']['Tables']['quiz_points']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['quiz_points']['Update'], id: number };
 type ViolationMutationVars = { operation: 'add', data: Database['public']['Tables']['violations']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['violations']['Update'], id: string };
+
+const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ studentDetails }) => {
+    const [summary, setSummary] = useState<AiSummary | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
+
+    const generateSummary = async () => {
+        setIsLoading(true);
+        try {
+            const { student, academicRecords, attendanceRecords, violations } = studentDetails;
+            const systemInstruction = `Anda adalah seorang konselor akademik AI yang ahli dalam merangkum performa siswa secara holistik. Berikan ringkasan yang seimbang, menyoroti hal positif sambil memberikan saran konstruktif. Gunakan Bahasa Indonesia yang formal namun memotivasi. Format output harus JSON sesuai skema.`;
+            
+            const academicSummary = academicRecords.length > 0
+                ? `Memiliki ${academicRecords.length} catatan nilai dengan rata-rata ${Math.round(academicRecords.reduce((sum, r) => sum + r.score, 0) / academicRecords.length)}.`
+                : 'Belum ada data nilai akademik.';
+
+            const attendanceSummary = `Memiliki ${attendanceRecords.filter(r => r.status === 'Alpha').length} hari alpha, ${attendanceRecords.filter(r => r.status === 'Izin').length} hari izin, dan ${attendanceRecords.filter(r => r.status === 'Sakit').length} hari sakit.`;
+
+            const behaviorSummary = violations.length > 0
+                ? `Terdapat ${violations.length} catatan pelanggaran dengan total ${violations.reduce((sum, v) => sum + v.points, 0)} poin.`
+                : 'Tidak ada catatan pelanggaran, menunjukkan perilaku yang baik.';
+            
+            const prompt = `
+            Analisis data siswa berikut untuk membuat ringkasan performa holistik.
+            Nama Siswa: ${student.name}
+            Data Akademik: ${academicSummary}
+            Data Kehadiran: ${attendanceSummary}
+            Data Perilaku: ${behaviorSummary}
+
+            Tugas:
+            1.  **general_evaluation**: Berikan evaluasi umum 1-2 kalimat.
+            2.  **strengths**: Identifikasi 1-2 kekuatan utama siswa (bisa dari akademik, kehadiran, atau perilaku).
+            3.  **development_focus**: Identifikasi 1-2 area utama yang memerlukan perhatian atau pengembangan.
+            4.  **recommendations**: Berikan 1-2 rekomendasi konkret dan positif untuk siswa atau guru.
+            `;
+            
+            const responseSchema = {
+                type: Type.OBJECT,
+                properties: {
+                    general_evaluation: { type: Type.STRING, description: 'Evaluasi umum 1-2 kalimat.' },
+                    strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: '1-2 kekuatan utama.' },
+                    development_focus: { type: Type.ARRAY, items: { type: Type.STRING }, description: '1-2 area fokus pengembangan.' },
+                    recommendations: { type: Type.ARRAY, items: { type: Type.STRING }, description: '1-2 rekomendasi konkret.' }
+                },
+                required: ["general_evaluation", "strengths", "development_focus", "recommendations"]
+            };
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { systemInstruction, responseMimeType: "application/json", responseSchema }
+            });
+
+            setSummary(JSON.parse(response.text));
+
+        } catch (error) {
+            console.error("Failed to generate AI summary:", error);
+            toast.error("Gagal membuat ringkasan AI.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        generateSummary();
+    }, [studentDetails]);
+
+    return (
+        <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 dark:from-gray-800/50 dark:via-gray-900/50 dark:to-slate-900/50">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-3">
+                    <BrainCircuitIcon className="w-6 h-6 text-purple-500"/>
+                    <span>Ringkasan Performa AI</span>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="space-y-3">
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full animate-pulse"></div>
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-5/6 animate-pulse"></div>
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4 animate-pulse"></div>
+                    </div>
+                ) : summary ? (
+                    <div className="space-y-4 text-sm">
+                        <p className="text-gray-700 dark:text-gray-300 italic">"{summary.general_evaluation}"</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div><h5 className="font-bold text-green-600 dark:text-green-400 mb-1">Kekuatan</h5><ul className="list-disc list-inside space-y-1">{summary.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
+                            <div><h5 className="font-bold text-yellow-600 dark:text-yellow-400 mb-1">Fokus Pengembangan</h5><ul className="list-disc list-inside space-y-1">{summary.development_focus.map((d, i) => <li key={i}>{d}</li>)}</ul></div>
+                            <div><h5 className="font-bold text-blue-600 dark:text-blue-400 mb-1">Rekomendasi</h5><ul className="list-disc list-inside space-y-1">{summary.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+                        </div>
+                    </div>
+                ) : (
+                    <p>Tidak dapat memuat ringkasan.</p>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
 
 
 const StatCard: React.FC<{ icon: React.FC<any>, label: string, value: string | number, color: string }> = ({ icon: Icon, label, value, color }) => (
@@ -178,14 +278,24 @@ const ActivityPointsHistory: React.FC<{ records: QuizPointRow[], onEdit: (record
 const StudentDetailPage = () => {
     const { studentId } = useParams<{ studentId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const isOnline = useOfflineStatus();
     const toast = useToast();
     const queryClient = useQueryClient();
     const [modalState, setModalState] = useState<ModalState>({ type: 'closed' });
+    const [activeTab, setActiveTab] = useState('grades');
     const [copied, setCopied] = useState(false);
     const photoInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        if (location.state?.openTab) {
+            setActiveTab(location.state.openTab);
+        }
+    }, [location.state]);
 
     const { data: studentDetails, isLoading, isError, error: queryError } = useQuery<StudentDetailsData>({
         queryKey: ['studentDetails', studentId],
@@ -194,17 +304,18 @@ const StudentDetailPage = () => {
             const studentRes = await supabase.from('students').select('*, classes(id, name)').eq('id', studentId).eq('user_id', user.id).single();
             if (studentRes.error) throw new Error(studentRes.error.message);
             
-            const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes] = await Promise.all([
+            const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes, commsRes] = await Promise.all([
                 supabase.from('reports').select('*').eq('student_id', studentId),
                 supabase.from('attendance').select('*').eq('student_id', studentId),
                 supabase.from('academic_records').select('*').eq('student_id', studentId),
                 supabase.from('violations').select('*').eq('student_id', studentId),
                 supabase.from('quiz_points').select('*').eq('student_id', studentId),
                 supabase.from('classes').select('*').eq('user_id', user.id),
+                supabase.from('communications').select('*').eq('student_id', studentId).order('created_at', { ascending: true }),
             ]);
 
             // Combine error handling
-            const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes].map(r => r.error).filter(Boolean);
+            const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes, commsRes].map(r => r.error).filter(Boolean);
             if (errors.length > 0) throw new Error(errors.map(e => e!.message).join(', '));
 
             return {
@@ -215,6 +326,7 @@ const StudentDetailPage = () => {
                 violations: violationsRes.data || [],
                 quizPoints: quizPointsRes.data || [],
                 classes: classesRes.data || [],
+                communications: commsRes.data || [],
             };
         },
         enabled: !!studentId && !!user,
@@ -302,6 +414,25 @@ const StudentDetailPage = () => {
             toast.success(`Data dari tabel ${v.table} berhasil dihapus.`);
         },
         onError: (error: Error) => { toast.error(error.message); }
+    });
+
+    const sendMessageMutation = useMutation({
+        mutationFn: async (messageText: string) => {
+            if (!user || !studentId) throw new Error("Data tidak lengkap");
+            const { error } = await supabase.from('communications').insert({
+                student_id: studentId,
+                user_id: user.id,
+                message: messageText,
+                sender: 'teacher',
+                is_read: false
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['studentDetails', studentId] });
+            setNewMessage('');
+        },
+        onError: (error: Error) => toast.error(error.message)
     });
     
     // Handlers
@@ -426,11 +557,40 @@ const StudentDetailPage = () => {
         }
     };
 
+    useEffect(() => {
+        const markMessagesAsRead = async () => {
+            if (activeTab === 'communication' && studentDetails?.communications) {
+                const unreadIds = studentDetails.communications
+                    .filter(m => m.sender === 'parent' && !m.is_read)
+                    .map(m => m.id);
+
+                if (unreadIds.length > 0) {
+                    const { error } = await supabase
+                        .from('communications')
+                        .update({ is_read: true })
+                        .in('id', unreadIds);
+                    
+                    if (error) {
+                        console.error("Failed to mark messages as read:", error);
+                    } else {
+                        // Invalidate to refetch and update UI
+                        queryClient.invalidateQueries({ queryKey: ['studentDetails', studentId] });
+                    }
+                }
+            }
+        };
+        markMessagesAsRead();
+    }, [activeTab, studentDetails?.communications, studentId, queryClient]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [studentDetails?.communications]);
+
     if (isLoading) return <div className="flex items-center justify-center h-screen"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
     if (isError) return <div className="flex items-center justify-center h-screen">Error: {(queryError as Error).message}</div>;
     if (!studentDetails) return null;
 
-    const { student, reports, academicRecords, quizPoints, violations, classes } = studentDetails;
+    const { student, reports, academicRecords, quizPoints, violations, classes, communications } = studentDetails;
 
     return (
         <div className="space-y-8 p-4 md:p-6 animate-fade-in-up">
@@ -453,6 +613,8 @@ const StudentDetailPage = () => {
                 </div>
             </header>
             
+            <AiStudentSummary studentDetails={studentDetails} />
+            
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} color="from-green-500 to-emerald-400" />
                 <StatCard icon={AlertCircleIcon} label="Total Izin/Sakit" value={`${attendanceSummary.Izin + attendanceSummary.Sakit} hari`} color="from-yellow-500 to-amber-400" />
@@ -460,13 +622,14 @@ const StudentDetailPage = () => {
                 <StatCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} color="from-red-500 to-rose-400" />
             </section>
 
-            <Tabs defaultValue="grades" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="flex justify-center border-b border-gray-200 dark:border-gray-700 mb-6">
                     <TabsList className="bg-gray-200/50 dark:bg-gray-900/50">
                         <TabsTrigger value="grades">Nilai</TabsTrigger>
                         <TabsTrigger value="activity">Keaktifan</TabsTrigger>
                         <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
                         <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
+                        <TabsTrigger value="communication">Komunikasi</TabsTrigger>
                         <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
                     </TabsList>
                 </div>
@@ -492,6 +655,31 @@ const StudentDetailPage = () => {
                         <CardContent>
                             {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="group relative p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50"><div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'report', data: r})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDelete('reports', r.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div><h4 className="font-bold">{r.title}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-700 dark:text-gray-300">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-500"><BookOpenIcon className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan guru untuk siswa ini.</p></div>)}
                         </CardContent>
+                    </Card>
+                </TabsContent>
+                 <TabsContent value="communication">
+                    <Card className="flex flex-col h-[70vh]">
+                        <CardHeader><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Orang Tua</CardTitle></CardHeader>
+                        <CardContent className="flex-1 overflow-y-auto space-y-4 p-4 bg-gray-100 dark:bg-gray-800/50">
+                            {communications.map(msg => (
+                                <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
+                                    {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" /></div>}
+                                    <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'teacher' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-white dark:bg-gray-700 rounded-bl-none'}`}>
+                                        <p className="whitespace-pre-wrap">{msg.message}</p>
+                                        <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'teacher' ? 'text-blue-200 justify-end' : 'text-gray-500 dark:text-gray-400 justify-end'}`}>
+                                          <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
+                                          {msg.sender === 'teacher' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                                        </div>
+                                    </div>
+                                    {msg.sender === 'teacher' && <img src={user?.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </CardContent>
+                        <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessageMutation.mutate(newMessage); }} className="p-4 border-t border-gray-200/50 dark:border-white/10 flex items-center gap-2">
+                            <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={!isOnline || sendMessageMutation.isPending}/>
+                            <Button type="submit" size="icon" disabled={!isOnline || !newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
+                        </form>
                     </Card>
                 </TabsContent>
                 <TabsContent value="portal">

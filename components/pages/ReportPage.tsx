@@ -88,6 +88,7 @@ const ReportPage: React.FC = () => {
     const toast = useToast();
 
     const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+    const [generatingSubjectNote, setGeneratingSubjectNote] = useState<number | null>(null);
     const [isExporting, setIsExporting] = useState(false);
     
     const [reportHeader, setReportHeader] = useState({
@@ -162,7 +163,8 @@ const ReportPage: React.FC = () => {
 
             const processedAcademicRecords = data.academicRecords.map(r => ({
                 ...r,
-                ...getPredicate(r.score)
+                ...getPredicate(r.score),
+                deskripsi: getPredicate(r.score).deskripsi // Pastikan deskripsi awal ada
             }));
             setEditableAcademicRecords(processedAcademicRecords);
             
@@ -227,6 +229,67 @@ const ReportPage: React.FC = () => {
 
     const handleRemoveQuizPointRow = (index: number) => {
         setEditableQuizPoints(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleGenerateSubjectNote = async (index: number) => {
+        const record = editableAcademicRecords[index];
+        if (!record.subject || !record.score) {
+            toast.warning("Harap isi mata pelajaran dan nilai terlebih dahulu.");
+            return;
+        }
+
+        setGeneratingSubjectNote(index);
+        try {
+            const systemInstruction = `Anda adalah seorang guru yang ahli dalam memberikan umpan balik. Berdasarkan skor siswa, tulis deskripsi singkat (1 kalimat) untuk rapor dalam Bahasa Indonesia.`;
+            const prompt = `Siswa mendapatkan nilai ${record.score} untuk mata pelajaran ${record.subject}. Buatkan deskripsi singkat yang konstruktif.`;
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
+            
+            handleListChange(setEditableAcademicRecords, index, 'deskripsi', response.text);
+            toast.success("Deskripsi berhasil dibuat!");
+        } catch (err) {
+            toast.error("Gagal membuat deskripsi AI.");
+            console.error(err);
+        } finally {
+            setGeneratingSubjectNote(null);
+        }
+    };
+
+    const handleGenerateAllSubjectNotes = async () => {
+        const recordsToGenerate = editableAcademicRecords.filter(r => !r.deskripsi || getPredicate(r.score).deskripsi === r.deskripsi);
+        if (recordsToGenerate.length === 0) {
+            toast.info("Semua deskripsi mata pelajaran sudah dibuat secara kustom atau oleh AI.");
+            return;
+        }
+
+        setIsGeneratingNote(true);
+        toast.info(`Mulai membuat catatan untuk ${recordsToGenerate.length} mata pelajaran...`);
+
+        let updatedRecords = [...editableAcademicRecords];
+        let successCount = 0;
+
+        for (const record of recordsToGenerate) {
+            const index = updatedRecords.findIndex(r => r.id === record.id);
+            if (index !== -1 && record.subject && record.score) {
+                try {
+                    const systemInstruction = `Anda adalah seorang guru yang ahli dalam memberikan umpan balik. Berdasarkan skor siswa, tulis deskripsi singkat (1 kalimat) untuk rapor dalam Bahasa Indonesia.`;
+                    const prompt = `Siswa mendapatkan nilai ${record.score} untuk mata pelajaran ${record.subject}. Buatkan deskripsi singkat yang konstruktif.`;
+                    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
+                    
+                    updatedRecords[index] = { ...record, deskripsi: response.text };
+                    setEditableAcademicRecords([...updatedRecords]); // Update state iteratively
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to generate note for ${record.subject}:`, err);
+                }
+            }
+        }
+        
+        setIsGeneratingNote(false);
+        if (successCount > 0) {
+            toast.success(`${successCount} deskripsi mata pelajaran berhasil dibuat!`);
+        } else {
+            toast.error("Gagal membuat deskripsi mata pelajaran.");
+        }
     };
 
     const generatePdf = () => {
@@ -379,10 +442,16 @@ const ReportPage: React.FC = () => {
                 <section className="mt-6">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="font-bold text-base">A. Nilai Akademik (Sumatif)</h3>
-                        <Button size="sm" variant="outline" onClick={handleAddAcademicRecordRow} className="print:hidden">
-                            <PlusIcon className="w-4 h-4 mr-2" />
-                            Tambah Baris
-                        </Button>
+                        <div className="flex gap-2 print:hidden">
+                            <Button size="sm" onClick={handleGenerateAllSubjectNotes} disabled={isGeneratingNote}>
+                                <BrainCircuitIcon className="w-4 h-4 mr-2" />
+                                Buat Semua Deskripsi
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleAddAcademicRecordRow}>
+                                <PlusIcon className="w-4 h-4 mr-2" />
+                                Tambah Baris
+                            </Button>
+                        </div>
                     </div>
                     <table className="w-full text-sm border-collapse border border-black">
                         <thead className="bg-gray-100 font-bold text-center">
@@ -406,8 +475,26 @@ const ReportPage: React.FC = () => {
                                         <EditableCell value={record.score} type="number" onChange={(val) => handleListChange(setEditableAcademicRecords, index, 'score', val)} className="text-center" />
                                     </td>
                                     <td className="border border-black p-2 text-center">{record.predikat}</td>
-                                    <td className="border border-black p-0">
-                                        <EditableCell value={record.deskripsi} onChange={(val) => handleListChange(setEditableAcademicRecords, index, 'deskripsi', val)} className="text-justify" />
+                                    <td className="border border-black p-0 relative group">
+                                         <textarea 
+                                            value={record.deskripsi}
+                                            onChange={(e) => handleListChange(setEditableAcademicRecords, index, 'deskripsi', e.target.value)}
+                                            className="w-full p-2 bg-transparent focus:bg-yellow-100 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm text-justify !h-full !min-h-[60px]"
+                                            rows={3}
+                                        />
+                                        <Button 
+                                            size="icon" 
+                                            variant="ghost" 
+                                            onClick={() => handleGenerateSubjectNote(index)} 
+                                            disabled={generatingSubjectNote === index}
+                                            className="absolute bottom-1 right-1 print:hidden w-7 h-7 text-purple-600 bg-white/50 hover:bg-purple-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            {generatingSubjectNote === index ? (
+                                                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <SparklesIcon className="w-4 h-4" />
+                                            )}
+                                        </Button>
                                     </td>
                                     <td className="border border-black p-1 text-center print:hidden">
                                         <Button size="icon" variant="ghost" onClick={() => handleRemoveAcademicRecordRow(index)} className="w-8 h-8 text-red-500">
@@ -506,7 +593,12 @@ const ReportPage: React.FC = () => {
                 </section>
                 
                 <section className="mt-6">
-                    <div className="flex justify-between items-center mb-2 print:hidden"><h3 className="font-bold text-base">D. Catatan Wali Kelas</h3><Button size="sm" variant="outline" onClick={() => handleGenerateAiNote(true)} disabled={isGeneratingNote}>{isGeneratingNote ? 'Membuat...' : <><BrainCircuitIcon className="w-4 h-4 mr-2" /> Buat dengan AI</>}</Button></div>
+                    <div className="flex justify-between items-center mb-2 print:hidden">
+                        <h3 className="font-bold text-base">D. Catatan Wali Kelas</h3>
+                        <Button onClick={() => handleGenerateAiNote(true)} disabled={isGeneratingNote}>
+                            {isGeneratingNote ? 'Membuat...' : <><BrainCircuitIcon className="w-4 h-4 mr-2" /> Buat dengan AI</>}
+                        </Button>
+                    </div>
                     <h3 className="font-bold text-base mb-2 hidden print:block">D. Catatan Wali Kelas</h3>
                     <div className="border border-black p-3 text-sm min-h-[80px]">
                         <textarea value={teacherNote} onChange={(e) => setTeacherNote(e.target.value)} className="w-full h-full bg-transparent focus:bg-yellow-100 p-1 rounded-sm font-serif text-justify"/>

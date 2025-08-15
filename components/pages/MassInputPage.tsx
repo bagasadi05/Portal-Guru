@@ -9,12 +9,13 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Checkbox } from '../ui/Checkbox';
 import { useOfflineStatus } from '../../hooks/useOfflineStatus';
-import { ClipboardPenIcon, GraduationCapIcon, PrinterIcon, ShieldAlertIcon, CheckSquareIcon, ArrowLeftIcon, ClipboardPasteIcon, SparklesIcon } from '../Icons';
+import { ClipboardPenIcon, GraduationCapIcon, PrinterIcon, ShieldAlertIcon, CheckSquareIcon, ArrowLeftIcon, ClipboardPasteIcon, SparklesIcon, AlertCircleIcon, PencilIcon } from '../Icons';
 import { violationList } from '../../services/violations.data';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AttendanceStatus } from '../../types';
 import { GoogleGenAI, Type } from '@google/genai';
+import { Modal } from '../ui/Modal';
 
 
 type ClassRow = Database['public']['Tables']['classes']['Row'];
@@ -39,6 +40,8 @@ type ReportData = {
 type InputMode = 'quiz' | 'subject_grade' | 'violation' | 'bulk_report';
 type Step = 1 | 2; // Step 1: Mode selection, Step 2: Configuration & Input
 
+type ReviewDataItem = { studentId: string; studentName: string; score: string; originalLine: string; };
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const actionCards: { mode: InputMode; title: string; description: string; icon: React.FC<any> }[] = [
@@ -58,7 +61,7 @@ const Step1_ModeSelection: React.FC<{ handleModeSelect: (mode: InputMode) => voi
         </header>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {actionCards.map(card => (
-                <div key={card.mode} onClick={() => handleModeSelect(card.mode)} className="cursor-pointer group bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6 text-center transition-all duration-300 hover:bg-white/10 hover:border-purple-400 hover:-translate-y-2">
+                <div key={card.mode} onClick={() => handleModeSelect(card.mode)} className="relative overflow-hidden cursor-pointer group bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6 text-center transition-all duration-300 hover:bg-white/10 hover:border-purple-400 hover:-translate-y-2 holographic-shine-hover">
                     <div className="flex justify-center mb-4">
                         <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 border border-white/10">
                             <card.icon className="w-8 h-8 text-purple-400" />
@@ -257,6 +260,7 @@ const MassInputPage: React.FC = () => {
     
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState('');
+    const [reviewData, setReviewData] = useState<ReviewDataItem[] | null>(null);
 
     const { data: classes, isLoading: isLoadingClasses } = useQuery({
         queryKey: ['classes', user?.id],
@@ -298,23 +302,21 @@ const MassInputPage: React.FC = () => {
         
         try {
             const studentNames = students.map(s => s.name);
-            const systemInstruction = `Anda adalah asisten pemrosesan data. Tugas Anda adalah membaca teks yang berisi nama siswa dan nilai, lalu mencocokkannya dengan daftar nama siswa yang diberikan. Hasilnya harus dalam format JSON yang valid, di mana kunci adalah nama siswa yang cocok dari daftar, dan nilainya adalah skor numerik yang ditemukan. Abaikan nama yang tidak ada dalam daftar.`;
-            const prompt = `
-                Daftar Siswa: ${JSON.stringify(studentNames)}
-                
-                Teks Data Nilai:
-                """
-                ${pasteData}
-                """
-                
-                Proses teks di atas dan kembalikan JSON berisi pasangan nama dan nilai.
-            `;
+            const systemInstruction = `Anda adalah asisten pemrosesan data. Baca teks yang berisi nama siswa dan nilai. Cocokkan nama dengan daftar siswa yang diberikan. Hasilnya harus berupa array JSON dari objek, di mana setiap objek berisi 'matched_name', 'score' numerik, dan 'original_line' dari input. Abaikan baris yang tidak dapat Anda cocokkan dengan nama siswa.`;
+            const prompt = `Daftar Siswa: ${JSON.stringify(studentNames)}\n\nTeks Data Nilai:\n"""\n${pasteData}\n"""\n\nProses teks di atas dan kembalikan array JSON.`;
             
             const responseSchema = {
-                type: Type.OBJECT,
-                properties: {},
-                description: "An object where keys are student names (string) and values are their scores (number)."
-            }
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        matched_name: { type: Type.STRING },
+                        score: { type: Type.NUMBER },
+                        original_line: { type: Type.STRING }
+                    },
+                    required: ["matched_name", "score", "original_line"]
+                }
+            };
 
             const response = await ai.models.generateContent({ 
                 model: 'gemini-2.5-flash', 
@@ -322,20 +324,22 @@ const MassInputPage: React.FC = () => {
                 config: { systemInstruction, responseMimeType: "application/json", responseSchema } 
             });
             
-            const parsedScores: Record<string, number> = JSON.parse(response.text);
+            const parsedScores: { matched_name: string; score: number; original_line: string }[] = JSON.parse(response.text);
             const studentMapByName = new Map(students.map(s => [s.name, s.id]));
             
-            let updatedCount = 0;
-            const newScores = { ...scores };
-            Object.entries(parsedScores).forEach(([name, score]) => {
-                const studentId = studentMapByName.get(name);
+            const reviewList: ReviewDataItem[] = [];
+            parsedScores.forEach(item => {
+                const studentId = studentMapByName.get(item.matched_name);
                 if (studentId) {
-                    newScores[studentId] = String(score);
-                    updatedCount++;
+                    reviewList.push({ studentId, studentName: item.matched_name, score: String(item.score), originalLine: item.original_line });
                 }
             });
-            setScores(newScores);
-            toast.success(`${updatedCount} nilai berhasil diisi oleh AI!`);
+
+            if (reviewList.length === 0) {
+                toast.warning("AI tidak dapat menemukan siswa yang cocok dari data yang Anda berikan.");
+            } else {
+                setReviewData(reviewList);
+            }
             
         } catch (error) {
             console.error(error);
@@ -399,6 +403,12 @@ const MassInputPage: React.FC = () => {
         toast.info("Fitur ini sedang dalam pengembangan.");
     };
 
+    const handleConfirmReview = (reviewedScores: Record<string, string>) => {
+        setScores(prev => ({ ...prev, ...reviewedScores }));
+        setReviewData(null);
+        toast.success(`${Object.keys(reviewedScores).length} nilai telah diterapkan. Anda dapat menyimpan sekarang.`);
+    };
+
     return (
         <div className="w-full min-h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col items-center justify-center">
              <div className="holographic-orb-container" style={{ top: '-40px', left: '10%', width: '120px', height: '120px', opacity: 0.7 }}>
@@ -452,8 +462,80 @@ const MassInputPage: React.FC = () => {
                     />
                 )}
             </main>
+
+            {reviewData && (
+                <ReviewModal
+                    data={reviewData}
+                    onConfirm={handleConfirmReview}
+                    onCancel={() => setReviewData(null)}
+                />
+            )}
         </div>
     );
 };
+
+const ReviewModal: React.FC<{ data: ReviewDataItem[], onConfirm: (scores: Record<string, string>) => void, onCancel: () => void }> = ({ data, onConfirm, onCancel }) => {
+    const [editedScores, setEditedScores] = useState<Record<string, string>>(() => {
+        return data.reduce((acc, item) => {
+            acc[item.studentId] = item.score;
+            return acc;
+        }, {} as Record<string, string>);
+    });
+
+    const handleScoreChange = (studentId: string, score: string) => {
+        setEditedScores(prev => ({ ...prev, [studentId]: score }));
+    };
+
+    const handleConfirm = () => {
+        onConfirm(editedScores);
+    };
+    
+    return (
+        <Modal title="Tinjau Hasil AI" isOpen={true} onClose={onCancel} icon={<PencilIcon />}>
+            <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">AI telah memproses data Anda. Silakan tinjau dan perbaiki nilai jika perlu sebelum menerapkannya.</p>
+                <div className="max-h-80 overflow-y-auto pr-2 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg">
+                    <table className="w-full text-sm">
+                        <thead className="text-left text-gray-500 dark:text-gray-400">
+                            <tr>
+                                <th className="p-2">Siswa & Data Asli</th>
+                                <th className="p-2 w-28 text-center">Nilai</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map(item => {
+                                const scoreNum = Number(editedScores[item.studentId]);
+                                const isInvalidScore = scoreNum < 0 || scoreNum > 100;
+                                return (
+                                    <tr key={item.studentId} className="border-t border-gray-200 dark:border-gray-700">
+                                        <td className="p-2">
+                                            <p className="font-medium text-gray-800 dark:text-gray-200">{item.studentName}</p>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 font-mono truncate">"{item.originalLine}"</p>
+                                        </td>
+                                        <td className="p-2">
+                                            <Input 
+                                                type="number" 
+                                                min="0" 
+                                                max="100" 
+                                                value={editedScores[item.studentId] || ''} 
+                                                onChange={(e) => handleScoreChange(item.studentId, e.target.value)}
+                                                className={isInvalidScore ? 'border-red-500 ring-2 ring-red-500/50' : ''}
+                                            />
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                 <div className="flex justify-end gap-2 pt-4">
+                    <Button type="button" variant="ghost" onClick={onCancel}>Batal</Button>
+                    <Button type="button" onClick={handleConfirm}>Terapkan Nilai</Button>
+                </div>
+            </div>
+        </Modal>
+    )
+};
+
 
 export default MassInputPage;

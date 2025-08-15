@@ -164,12 +164,17 @@ const AiDashboardInsight: React.FC<{
         navigate('/tugas', {
             state: {
                 prefill: {
-                    title: `Tugas untuk ${studentName}`,
+                    title: `Tindak lanjut untuk ${studentName}`,
                     description: `Dibuat berdasarkan saran AI: "${reason}"`,
                     status: 'todo'
                 }
             }
         });
+    };
+
+    const handleSendMessage = (studentId: string | undefined) => {
+        if (!studentId) return;
+        navigate(`/siswa/${studentId}`, { state: { openTab: 'communication' } });
     };
     
     const InsightSection: React.FC<{ icon: React.ElementType, title: string, color: string, children: React.ReactNode }> = ({ icon: Icon, title, color, children }) => (
@@ -185,7 +190,7 @@ const AiDashboardInsight: React.FC<{
     return (
         <div className="p-6 h-full flex flex-col">
             <h3 className="flex items-center gap-3 text-xl text-white font-semibold mb-4">
-                <SparklesIcon className="w-6 h-6 text-fuchsia-400" />
+                <div className="animate-pulse-fast"><SparklesIcon className="w-6 h-6 text-fuchsia-400" /></div>
                 <span>Wawasan AI Harian</span>
             </h3>
             <div className="space-y-5 flex-grow">
@@ -210,7 +215,10 @@ const AiDashboardInsight: React.FC<{
                                     return (
                                         <div key={index} className="flex justify-between items-center gap-2">
                                             <p className="flex-grow"><Link to={studentId ? `/siswa/${studentId}` : '#'} className="font-bold hover:underline">{item.student_name}</Link>: {item.reason}</p>
-                                            <Button size="sm" onClick={() => handleCreateTask(item.student_name, item.reason)} className="text-xs h-7 flex-shrink-0 bg-white/10 text-white backdrop-blur-sm border border-white/20 hover:bg-white/20">Buat Tugas</Button>
+                                            <div className="flex-shrink-0 flex gap-1">
+                                                <Button size="sm" onClick={() => handleSendMessage(studentId)} className="text-xs h-7 bg-white/10 text-white backdrop-blur-sm border border-white/20 hover:bg-white/20">Kirim Pesan</Button>
+                                                <Button size="sm" onClick={() => handleCreateTask(item.student_name, item.reason)} className="text-xs h-7 bg-white/10 text-white backdrop-blur-sm border border-white/20 hover:bg-white/20">Buat Tugas</Button>
+                                            </div>
                                         </div>
                                     );
                                 })}
