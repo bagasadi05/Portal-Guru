@@ -300,15 +300,13 @@ const SchedulePage: React.FC = () => {
             const year = eventDate.getFullYear();
             const month = eventDate.getMonth() + 1;
             const day = eventDate.getDate();
-
-            const recurrenceRule = `FREQ=WEEKLY;BYDAY=${dayToICalDay[item.day]}`;
             
             return {
                 uid: `guru-pwa-${item.id}@myapp.com`,
                 title: `${item.subject} (Kelas ${item.class_id})`,
                 start: [year, month, day, startHour, startMinute],
                 end: [year, month, day, endHour, endMinute],
-                rrule: recurrenceRule,
+                recurrenceRule: `FREQ=WEEKLY;BYDAY=${dayToICalDay[item.day]}`,
                 description: `Jadwal mengajar untuk kelas ${item.class_id}`,
                 location: 'Sekolah',
                 startOutputType: 'local',
