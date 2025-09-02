@@ -10,7 +10,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+// FIX: Changed 'interface' to 'type' for correct Supabase type inference.
+export type Database = {
   public: {
     Tables: {
       academic_records: {
@@ -41,7 +42,34 @@ export interface Database {
           user_id?: string;
           created_at?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       };
+      communications: {
+        Row: {
+          id: string
+          created_at: string
+          student_id: string
+          user_id: string
+          message: string
+          sender: "teacher" | "parent"
+          is_read: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          student_id: string
+          user_id: string
+          message: string
+          sender: "teacher" | "parent"
+          is_read?: boolean
+        }
+        Update: {
+          is_read?: boolean
+        }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
+      }
       quiz_points: {
         Row: {
           id: number;
@@ -76,6 +104,8 @@ export interface Database {
           student_id?: string;
           user_id?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       };
       attendance: {
         Row: {
@@ -105,16 +135,22 @@ export interface Database {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       classes: {
         Row: { id: string; name: string; user_id: string; created_at: string; }
         Insert: { id?: string; name: string; user_id: string; created_at?: string; }
         Update: { id?: string; name?: string; user_id?: string; created_at?: string; }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       students: {
         Row: { id: string; name: string; class_id: string; avatar_url: string; user_id: string; created_at: string; gender: "Laki-laki" | "Perempuan"; access_code: string | null }
         Insert: { id?: string; name: string; class_id: string; avatar_url: string; user_id: string; created_at?: string; gender: "Laki-laki" | "Perempuan"; access_code?: string | null }
         Update: { id?: string; name?: string; class_id?: string; avatar_url?: string; user_id?: string; created_at?: string; gender?: "Laki-laki" | "Perempuan"; access_code?: string | null }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       reports: {
         Row: {
@@ -147,6 +183,8 @@ export interface Database {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       schedules: {
         Row: {
@@ -179,6 +217,8 @@ export interface Database {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       violations: {
         Row: {
@@ -208,6 +248,8 @@ export interface Database {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       }
       tasks: {
         Row: {
@@ -237,12 +279,15 @@ export interface Database {
           status?: "todo" | "in_progress" | "done";
           created_at?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
+        Relationships: []
       };
     }
     Views: { [_ in never]: never }
     Functions: {
       delete_user_account: {
-        Args: Record<string, unknown>
+// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
+        Args: {}
         Returns: undefined
       }
       get_daily_attendance_summary: {
@@ -258,28 +303,75 @@ export interface Database {
       }
       get_student_portal_data: {
         Args: {
-          student_id_param: string;
-          access_code_param: string;
-        };
+          student_id_param: string
+          access_code_param: string
+        }
         Returns: {
           student: {
-            id: string;
-            name: string;
-            avatar_url: string;
-            classes: { name: string };
-          };
-          reports: { id: string; date: string; title: string; notes: string }[];
-          attendanceRecords: { id: string; date: string; status: string; notes: string | null }[];
-          academicRecords: { id: string; subject: string; score: number; notes: string; created_at: string }[];
-          violations: { id: string; date: string; description: string; points: number }[];
-          quizPoints: { id: number; quiz_date: string; subject: string; quiz_name: string }[];
-        };
-      };
+            id: string
+            name: string
+            avatar_url: string
+            user_id: string
+            classes: { name: string }
+          }
+          reports: {
+            id: string
+            date: string
+            title: string
+            notes: string
+          }[]
+          attendanceRecords: {
+            id: string
+            date: string
+            status: string
+            notes: string | null
+          }[]
+          academicRecords: {
+            id: string
+            subject: string
+            score: number
+            notes: string
+            created_at: string
+          }[]
+          violations: {
+            id: string
+            date: string
+            description: string
+            points: number
+          }[]
+          quizPoints: {
+            id: number
+            quiz_date: string
+            subject: string
+            quiz_name: string
+            points: number
+            max_points: number
+          }[]
+          communications: {
+            id: string
+            created_at: string
+            message: string
+            sender: "teacher" | "parent"
+            is_read: boolean
+          }[]
+          teacher: { user_id: string; name: string; avatar_url: string } | null
+        }[]
+      }
       get_weekly_attendance_summary: {
-        Args: Record<string, unknown>
+// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
+        Args: {}
         Returns: {
           day: string
           present_percentage: number
+        }[]
+      }
+      verify_access_code: {
+        Args: {
+          access_code_param: string
+        }
+        Returns: {
+          id: string
+          access_code: string
         }[]
       }
     }

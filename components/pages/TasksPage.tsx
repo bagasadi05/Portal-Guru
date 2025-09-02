@@ -1,4 +1,7 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
+// FIX: Use named imports for react-router-dom hooks
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -8,7 +11,7 @@ import { Database } from '../../services/database.types';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
-import { PlusIcon, PencilIcon, TrashIcon, CheckSquareIcon, CalendarIcon } from '../Icons';
+import { PlusIcon, PencilIcon, TrashIcon, CheckSquareIcon, CalendarIcon, CheckIcon, Undo2Icon } from '../Icons';
 import { useOfflineStatus } from '../../hooks/useOfflineStatus';
 
 type Task = Database['public']['Tables']['tasks']['Row'];
@@ -54,48 +57,36 @@ const TaskCard: React.FC<{
     onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
 }> = ({ task, onEdit, onDelete, onStatusChange, isOnline, onDragStart, onDragEnd }) => {
     const dueDateInfo = getDueDateInfo(task.due_date);
-    const [isCompleted, setIsCompleted] = useState(task.status === 'done');
-    
-    const handleCheck = () => {
-        if (!isOnline) return;
-        setIsCompleted(true);
-        // Add a slight delay to allow the check animation to be seen before moving
-        setTimeout(() => onStatusChange(task.id, 'done'), 300);
-    };
+    const isDone = task.status === 'done';
 
     return (
         <div 
-            draggable={isOnline}
+            draggable={isOnline && !isDone}
             onDragStart={(e) => onDragStart(e, task.id)}
             onDragEnd={onDragEnd}
-            className={`group relative bg-black/20 backdrop-blur-sm border border-white/20 p-3.5 rounded-xl cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:-translate-y-1 hover:border-purple-400 ${isCompleted ? 'opacity-60' : ''}`}
+            className={`group relative bg-black/20 backdrop-blur-sm border border-white/20 p-4 rounded-xl transition-all hover:shadow-lg hover:-translate-y-1 hover:border-purple-400 ${isDone ? 'opacity-60 bg-black/40' : 'cursor-grab active:cursor-grabbing'}`}
         >
-            <div className="flex items-start gap-3">
-                {task.status !== 'done' && (
-                    <input 
-                        type="checkbox" 
-                        checked={isCompleted}
-                        onChange={handleCheck}
-                        disabled={!isOnline}
-                        className="mt-1 flex-shrink-0 form-checkbox h-5 w-5 rounded-full border-gray-500 bg-transparent text-green-500 focus:ring-green-500/50 transition duration-150 ease-in-out" 
-                        aria-label={`Tandai selesai untuk ${task.title}`}
-                    />
-                )}
-                <div className="flex-grow">
-                    <p className={`font-semibold text-base text-white break-words ${isCompleted ? 'line-through' : ''}`}>{task.title}</p>
-                </div>
-            </div>
+            <p className={`font-semibold text-base text-white break-words ${isDone ? 'line-through' : ''}`}>{task.title}</p>
 
-            {task.description && <p className="text-sm text-gray-300 mt-2 ml-8 break-words">{task.description}</p>}
+            {task.description && <p className="text-sm text-gray-300 mt-2 break-words">{task.description}</p>}
             
-            {dueDateInfo && 
-                <div className={`text-xs font-semibold mt-3 flex items-center gap-2 ml-8 ${dueDateInfo.color}`}>
+            {dueDateInfo && !isDone &&
+                <div className={`text-xs font-semibold mt-3 flex items-center gap-2 ${dueDateInfo.color}`}>
                     <CalendarIcon className="w-3.5 h-3.5" />
                     <span>{dueDateInfo.text}</span>
                 </div>
             }
 
             <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {isDone ? (
+                    <Button variant="ghost" size="icon" title="Kembalikan ke 'Dikerjakan'" className="h-7 w-7 bg-white/10 text-white hover:bg-white/20" onClick={() => onStatusChange(task.id, 'in_progress')} disabled={!isOnline}>
+                        <Undo2Icon className="h-4 w-4" />
+                    </Button>
+                ) : (
+                    <Button variant="ghost" size="icon" title="Tandai Selesai" className="h-7 w-7 bg-white/10 text-green-400 hover:bg-green-500/50 hover:text-white" onClick={() => onStatusChange(task.id, 'done')} disabled={!isOnline}>
+                        <CheckIcon className="h-4 w-4" />
+                    </Button>
+                )}
                 <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/10 text-white hover:bg-white/20" onClick={() => onEdit(task)} disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white" onClick={() => onDelete(task.id)} disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
             </div>
@@ -130,25 +121,26 @@ const TaskColumn: React.FC<{
     
     return (
         <div
-            className={`bg-white/5 backdrop-blur-lg rounded-2xl border p-4 flex-1 min-w-[320px] max-w-[380px] flex flex-col transition-all duration-300 ${draggedOverStatus === status ? 'border-2 border-purple-500 bg-white/10' : 'border-white/10'}`}
+            className={`bg-gradient-to-b from-white/10 to-transparent backdrop-blur-lg rounded-2xl border p-4 flex-1 min-w-[320px] max-w-[380px] flex flex-col transition-all duration-300 ${draggedOverStatus === status ? 'border-2 border-purple-500 scale-105' : 'border-white/10'}`}
             onDragOver={(e) => onDragOver(e, status)}
             onDrop={(e) => onDrop(e, status)}
         >
-            <div className={`font-bold text-lg pb-3 mb-4 border-b-4 ${statusConfig[status].color.replace('bg-', 'border-')} flex justify-between items-center`}>
+            <div className={`font-bold text-lg pb-3 mb-4 border-b-2 ${statusConfig[status].color.replace('bg-', 'border-')} flex justify-between items-center`}>
                 <span className="text-white">{statusConfig[status].title}</span>
                 <span className="text-sm font-semibold text-gray-300 bg-black/20 rounded-full px-2.5 py-0.5">{tasks.length}</span>
             </div>
             
             {status === 'todo' && (
-                <form onSubmit={handleQuickAddSubmit} className="mb-4">
+                <form onSubmit={handleQuickAddSubmit} className="mb-4 relative">
                     <Input 
                         value={quickAddTitle}
                         onChange={(e) => setQuickAddTitle(e.target.value)}
-                        placeholder="+ Tambah tugas cepat"
+                        placeholder="Tambah tugas baru..."
                         aria-label="Tambah tugas cepat"
                         disabled={!isOnline}
-                        className="h-9 bg-white/10 border-white/20 placeholder:text-gray-400 text-white focus:bg-white/20 focus:border-purple-400"
+                        className="h-9 bg-white/10 border-white/20 placeholder:text-gray-400 text-white focus:bg-white/20 focus:border-purple-400 !pl-8"
                     />
+                    <PlusIcon className="w-4 h-4 text-gray-400 absolute top-1/2 left-2.5 -translate-y-1/2 pointer-events-none" />
                 </form>
             )}
             
@@ -189,7 +181,9 @@ const TasksPage: React.FC = () => {
     const queryClient = useQueryClient();
     const toast = useToast();
     const isOnline = useOfflineStatus();
+    // FIX: Use useLocation hook directly
     const location = useLocation();
+    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     
     const [modalState, setModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: Task | null }>({ isOpen: false, mode: 'add', data: null });
@@ -259,7 +253,20 @@ const TasksPage: React.FC = () => {
     });
 
     const tasksByStatus = useMemo(() => {
-        return tasks.reduce((acc, task) => {
+        const sortedTasks = [...tasks].sort((a,b) => {
+            // Sort 'done' tasks by creation date descending (newest first)
+            if (a.status === 'done' && b.status === 'done') {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            }
+            // For other statuses, prioritize tasks with due dates
+            const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+            const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+            if (aDate !== bDate) return aDate - bDate;
+            // If due dates are same or non-existent, sort by creation
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        
+        return sortedTasks.reduce((acc, task) => {
             acc[task.status].push(task);
             return acc;
         }, { todo: [], in_progress: [], done: [] } as Record<TaskStatus, Task[]>);

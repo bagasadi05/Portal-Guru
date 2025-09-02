@@ -1,12 +1,14 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+// FIX: Use named imports for react-router-dom hooks and components
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AttendanceStatus } from '../../types';
 import { useToast } from '../../hooks/useToast';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, FileTextIcon, UserCircleIcon, BarChartIcon, PencilIcon, TrashIcon, BookOpenIcon, SparklesIcon, ClockIcon, TrendingUpIcon, PlusIcon, BrainCircuitIcon, CameraIcon, ShieldAlertIcon, KeyRoundIcon, CopyIcon, CopyCheckIcon, MessageSquareIcon, SendIcon, UsersIcon } from '../Icons';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, FileTextIcon, UserCircleIcon, BarChartIcon, PencilIcon, TrashIcon, BookOpenIcon, SparklesIcon, ClockIcon, TrendingUpIcon, PlusIcon, BrainCircuitIcon, CameraIcon, ShieldAlertIcon, KeyRoundIcon, CopyIcon, CopyCheckIcon, MessageSquareIcon, SendIcon, UsersIcon, PrinterIcon, Share2Icon } from '../Icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
 import { Modal } from '../ui/Modal';
 import { Type } from '@google/genai';
@@ -115,7 +117,7 @@ const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ st
                 config: { systemInstruction, responseMimeType: "application/json", responseSchema }
             });
 
-            setSummary(JSON.parse(response.text));
+            setSummary(JSON.parse(response.text) as AiSummary);
 
         } catch (error) {
             console.error("Failed to generate AI summary:", error);
@@ -130,27 +132,27 @@ const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ st
     }, [studentDetails]);
 
     return (
-        <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 dark:from-gray-800/50 dark:via-gray-900/50 dark:to-slate-900/50">
+        <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-3">
-                    <BrainCircuitIcon className="w-6 h-6 text-purple-500"/>
+                    <BrainCircuitIcon className="w-6 h-6 text-purple-400"/>
                     <span>Ringkasan Performa AI</span>
                 </CardTitle>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                     <div className="space-y-3">
-                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full animate-pulse"></div>
-                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-5/6 animate-pulse"></div>
-                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4 animate-pulse"></div>
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-full animate-pulse"></div>
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-5/6 animate-pulse"></div>
+                        <div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-3/4 animate-pulse"></div>
                     </div>
                 ) : summary ? (
                     <div className="space-y-4 text-sm">
-                        <p className="text-gray-700 dark:text-gray-300 italic">"{summary.general_evaluation}"</p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><h5 className="font-bold text-green-600 dark:text-green-400 mb-1">Kekuatan</h5><ul className="list-disc list-inside space-y-1">{summary.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
-                            <div><h5 className="font-bold text-yellow-600 dark:text-yellow-400 mb-1">Fokus Pengembangan</h5><ul className="list-disc list-inside space-y-1">{summary.development_focus.map((d, i) => <li key={i}>{d}</li>)}</ul></div>
-                            <div><h5 className="font-bold text-blue-600 dark:text-blue-400 mb-1">Rekomendasi</h5><ul className="list-disc list-inside space-y-1">{summary.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+                        <p className="text-gray-300 italic">"{summary.general_evaluation}"</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-white/10">
+                            <div><h5 className="font-bold text-green-400 mb-1">Kekuatan</h5><ul className="list-disc list-inside space-y-1 text-gray-400">{summary.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
+                            <div><h5 className="font-bold text-yellow-400 mb-1">Fokus Pengembangan</h5><ul className="list-disc list-inside space-y-1 text-gray-400">{summary.development_focus.map((d, i) => <li key={i}>{d}</li>)}</ul></div>
+                            <div><h5 className="font-bold text-blue-400 mb-1">Rekomendasi</h5><ul className="list-disc list-inside space-y-1 text-gray-400">{summary.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
                         </div>
                     </div>
                 ) : (
@@ -163,14 +165,14 @@ const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ st
 
 
 const StatCard: React.FC<{ icon: React.FC<any>, label: string, value: string | number, color: string }> = ({ icon: Icon, label, value, color }) => (
-    <Card className="p-4 flex-1">
+    <Card className="p-4">
         <div className="flex items-center gap-4">
             <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br ${color}`}>
                  <Icon className="w-6 h-6 text-white" />
             </div>
             <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+                <p className="text-2xl font-bold text-white">{value}</p>
+                <p className="text-sm text-gray-400">{label}</p>
             </div>
         </div>
     </Card>
@@ -179,8 +181,8 @@ const StatCard: React.FC<{ icon: React.FC<any>, label: string, value: string | n
 const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: AcademicRecordRow) => void, onDelete: (recordId: string) => void, isOnline: boolean }> = ({ records, onEdit, onDelete, isOnline }) => {
     if (!records || records.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-500 dark:text-gray-400">
-                <BarChartIcon className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
+            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                <BarChartIcon className="w-16 h-16 mb-4 text-gray-600" />
                 <h4 className="text-lg font-semibold">Tidak Ada Data Nilai Mata Pelajaran</h4>
                 <p className="text-sm">Nilai yang Anda tambahkan akan muncul di sini.</p>
             </div>
@@ -190,24 +192,9 @@ const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: A
     const sortedRecords = [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const getScoreColorClasses = (score: number) => {
-        if (score >= 85) return {
-            bg: 'bg-green-50 dark:bg-green-900/30',
-            border: 'border-green-400 dark:border-green-600',
-            shadow: 'hover:shadow-green-500/20',
-            scoreBg: 'bg-green-500',
-        };
-        if (score >= 70) return {
-            bg: 'bg-yellow-50 dark:bg-yellow-900/30',
-            border: 'border-yellow-400 dark:border-yellow-600',
-            shadow: 'hover:shadow-yellow-500/20',
-            scoreBg: 'bg-yellow-500',
-        };
-        return {
-            bg: 'bg-red-50 dark:bg-red-900/30',
-            border: 'border-red-400 dark:border-red-600',
-            shadow: 'hover:shadow-red-500/20',
-            scoreBg: 'bg-red-500',
-        };
+        if (score >= 85) return { bg: 'bg-green-900/30', border: 'border-green-600', scoreBg: 'bg-green-500' };
+        if (score >= 70) return { bg: 'bg-yellow-900/30', border: 'border-yellow-600', scoreBg: 'bg-yellow-500' };
+        return { bg: 'bg-red-900/30', border: 'border-red-600', scoreBg: 'bg-red-500' };
     };
 
     return (
@@ -215,22 +202,22 @@ const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: A
             {sortedRecords.map((record) => {
                 const colors = getScoreColorClasses(record.score);
                 return (
-                    <div key={record.id} className={`group relative p-4 rounded-xl border-2 ${colors.border} ${colors.bg} ${colors.shadow} transition-all duration-300 transform hover:-translate-y-1`}>
+                    <div key={record.id} className={`group relative p-4 rounded-xl border-2 ${colors.border} ${colors.bg} hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-1`}>
                         <div className="flex items-center gap-4">
                              <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center font-black text-3xl text-white ${colors.scoreBg} shadow-inner`}>
                                 {record.score}
                             </div>
                             <div className="flex-grow">
-                                <h4 className="font-extrabold text-lg text-gray-800 dark:text-gray-200">{record.subject}</h4>
-                                <p className="text-xs text-gray-500 dark:text-gray-500 font-medium">
+                                <h4 className="font-extrabold text-lg text-white">{record.subject}</h4>
+                                <p className="text-xs text-gray-400 font-medium">
                                     {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                                 </p>
                             </div>
                         </div>
-                        {record.notes && <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 pt-3 border-t-2 border-dashed border-gray-500/10 italic">"{record.notes}"</p>}
+                        {record.notes && <p className="text-sm text-gray-400 mt-3 pt-3 border-t-2 border-dashed border-white/10 italic">"{record.notes}"</p>}
                          <div className="absolute top-3 right-3 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 bg-white/50 dark:bg-gray-900/50" onClick={() => onEdit(record)} aria-label="Edit Catatan Akademik" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 bg-white/50 dark:bg-gray-900/50" onClick={() => onDelete(record.id)} aria-label="Hapus Catatan Akademik" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/30 backdrop-blur-sm" onClick={() => onEdit(record)} aria-label="Edit Catatan Akademik" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 bg-black/30 backdrop-blur-sm" onClick={() => onDelete(record.id)} aria-label="Hapus Catatan Akademik" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
                         </div>
                     </div>
                 );
@@ -242,8 +229,8 @@ const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: A
 const ActivityPointsHistory: React.FC<{ records: QuizPointRow[], onEdit: (record: QuizPointRow) => void, onDelete: (recordId: number) => void, isOnline: boolean }> = ({ records, onEdit, onDelete, isOnline }) => {
     if (!records || records.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-500 dark:text-gray-400">
-                <CheckCircleIcon className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" />
+            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                <CheckCircleIcon className="w-16 h-16 mb-4 text-gray-600" />
                 <h4 className="text-lg font-semibold">Tidak Ada Poin Keaktifan</h4>
                 <p className="text-sm">Poin yang Anda tambahkan akan muncul di sini.</p>
             </div>
@@ -255,19 +242,19 @@ const ActivityPointsHistory: React.FC<{ records: QuizPointRow[], onEdit: (record
     return (
         <div className="space-y-3">
             {sortedRecords.map((record) => (
-                <div key={record.id} className="group flex items-center gap-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 transition-all shadow-sm hover:shadow-lg border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-2xl bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200">
+                <div key={record.id} className="group flex items-center gap-4 p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-all">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-2xl bg-green-900/40 text-green-200">
                         +1
                     </div>
                     <div className="flex-grow">
-                        <p className="font-semibold text-gray-800 dark:text-gray-200">{record.quiz_name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="font-semibold text-white">{record.quiz_name}</p>
+                        <p className="text-xs text-gray-400">
                             {record.subject} &middot; {new Date(record.quiz_date).toLocaleDateString('id-ID')}
                         </p>
                     </div>
                      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(record)} aria-label="Edit Poin" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => onDelete(record.id)} aria-label="Hapus Poin" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => onDelete(record.id)} aria-label="Hapus Poin" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
                     </div>
                 </div>
             ))}
@@ -275,9 +262,21 @@ const ActivityPointsHistory: React.FC<{ records: QuizPointRow[], onEdit: (record
     );
 };
 
+const generateAccessCode = (): string => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No 0, O, 1, I
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+};
+
 const StudentDetailPage = () => {
+    // FIX: Use useParams hook directly
     const { studentId } = useParams<{ studentId: string }>();
+    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
+    // FIX: Use useLocation hook directly
     const location = useLocation();
     const { user } = useAuth();
     const isOnline = useOfflineStatus();
@@ -301,7 +300,8 @@ const StudentDetailPage = () => {
         queryKey: ['studentDetails', studentId],
         queryFn: async () => {
             if (!studentId || !user) throw new Error("User or Student ID not found");
-            const studentRes = await supabase.from('students').select('*, classes(id, name)').eq('id', studentId).eq('user_id', user.id).single();
+            // FIX: Removed the failing direct join 'classes(id, name)'
+            const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', user.id).single();
             if (studentRes.error) throw new Error(studentRes.error.message);
             
             const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes, commsRes] = await Promise.all([
@@ -317,9 +317,15 @@ const StudentDetailPage = () => {
             // Combine error handling
             const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes, commsRes].map(r => r.error).filter(Boolean);
             if (errors.length > 0) throw new Error(errors.map(e => e!.message).join(', '));
+            
+            // FIX: Manually join student with class info after fetching separately.
+            const studentData = studentRes.data;
+            const classInfo = (classesRes.data || []).find(c => c.id === studentData.class_id);
+            const studentWithClass = { ...studentData, classes: classInfo ? { id: classInfo.id, name: classInfo.name } : null };
+
 
             return {
-                student: studentRes.data as StudentWithClass,
+                student: studentWithClass,
                 reports: reportsRes.data || [],
                 attendanceRecords: attendanceRes.data || [],
                 academicRecords: academicRes.data || [],
@@ -404,7 +410,8 @@ const StudentDetailPage = () => {
     });
     
     const deleteMutation = useMutation({
-        mutationFn: async ({ table, id }: { table: string, id: string | number }) => {
+        // FIX: Provide a stricter type for `table` to ensure it's a valid table name from the database schema.
+        mutationFn: async ({ table, id }: { table: keyof Database['public']['Tables'], id: string | number }) => {
             const { error } = await supabase.from(table).delete().eq('id', id);
             if (error) throw error;
         },
@@ -513,7 +520,7 @@ const StudentDetailPage = () => {
         }
     };
     
-    const handleDelete = (table: string, id: string | number) => {
+    const handleDelete = (table: keyof Database['public']['Tables'], id: string | number) => {
         setModalState({ type: 'confirmDelete', title: 'Konfirmasi Hapus', message: 'Apakah Anda yakin ingin menghapus data ini secara permanen?', onConfirm: () => deleteMutation.mutate({ table, id }), isPending: deleteMutation.isPending });
     };
     
@@ -534,7 +541,7 @@ const StudentDetailPage = () => {
 
     const handleGenerateAccessCode = async () => {
         if (!studentId || studentMutation.isPending) return;
-        const newCode = Array(6).fill(0).map(() => Math.random().toString(36).charAt(2)).join('').toUpperCase();
+        const newCode = generateAccessCode();
         studentMutation.mutate({ access_code: newCode });
     };
 
@@ -586,6 +593,24 @@ const StudentDetailPage = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [studentDetails?.communications]);
 
+    const handleShare = () => {
+        if (navigator.share && studentDetails?.student.access_code) {
+            navigator.share({
+                title: `Akses Portal Siswa - ${studentDetails.student.name}`,
+                text: `Gunakan kode akses ${studentDetails.student.access_code} untuk melihat perkembangan ${studentDetails.student.name} di portal siswa.`,
+                url: window.location.origin,
+            })
+            .then(() => console.log('Successful share'))
+            .catch((error) => console.log('Error sharing', error));
+        } else {
+            toast.info("Fitur berbagi tidak didukung di browser ini. Silakan salin kodenya secara manual.");
+        }
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
     if (isLoading) return <div className="flex items-center justify-center h-screen"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
     if (isError) return <div className="flex items-center justify-center h-screen">Error: {(queryError as Error).message}</div>;
     if (!studentDetails) return null;
@@ -594,121 +619,155 @@ const StudentDetailPage = () => {
 
     return (
         <div className="space-y-8 p-4 md:p-6 animate-fade-in-up">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => navigate(-1)} aria-label="Kembali"><ArrowLeftIcon className="w-5 h-5" /></Button>
-                    <div className="relative">
-                        <img src={student.avatar_url || `https://i.pravatar.cc/150?u=${student.id}`} alt={student.name} className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-lg" />
-                        <input type="file" ref={photoInputRef} onChange={handlePhotoChange} accept="image/png, image/jpeg" className="hidden" disabled={isUploadingPhoto || !isOnline} />
-                        <button onClick={() => photoInputRef.current?.click()} disabled={isUploadingPhoto || !isOnline} className="absolute -bottom-1 -right-1 p-1.5 bg-purple-600 text-white rounded-full shadow-md hover:scale-110 transition-transform"><CameraIcon className="w-4 h-4"/></button>
+            <div className="no-print">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="icon" onClick={() => navigate(-1)} aria-label="Kembali" className="bg-white/10 border-white/20 hover:bg-white/20 text-white"><ArrowLeftIcon className="w-5 h-5" /></Button>
+                        <div className="relative">
+                            <img src={student.avatar_url || `https://i.pravatar.cc/150?u=${student.id}`} alt={student.name} className="w-20 h-20 rounded-full object-cover border-4 border-white/10 shadow-lg" />
+                            <input type="file" ref={photoInputRef} onChange={handlePhotoChange} accept="image/png, image/jpeg" className="hidden" disabled={isUploadingPhoto || !isOnline} />
+                            <button onClick={() => photoInputRef.current?.click()} disabled={isUploadingPhoto || !isOnline} className="absolute -bottom-1 -right-1 p-1.5 bg-purple-600 text-white rounded-full shadow-md hover:scale-110 transition-transform"><CameraIcon className="w-4 h-4"/></button>
+                        </div>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold text-white">{student.name}</h1>
+                            <p className="text-md text-gray-400">Kelas {student.classes?.name || 'N/A'}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">{student.name}</h1>
-                        <p className="text-md text-gray-500 dark:text-gray-400">Kelas {student.classes?.name || 'N/A'}</p>
+                    <div className="flex items-center gap-2 self-start md:self-center">
+                        <Button variant="outline" onClick={() => setModalState({ type: 'editStudent', data: student })} disabled={!isOnline} className="bg-white/10 border-white/20 hover:bg-white/20 text-white"><UserCircleIcon className="w-4 h-4 mr-2" />Edit Profil</Button>
+                        {/* FIX: Use Link component directly */}
+                        <Link to={`/cetak-rapot/${studentId}`}><Button><FileTextIcon className="w-4 h-4 mr-2" />Cetak Rapor</Button></Link>
                     </div>
-                </div>
-                <div className="flex items-center gap-2 self-start md:self-center">
-                     <Button variant="outline" onClick={() => setModalState({ type: 'editStudent', data: student })} disabled={!isOnline}><UserCircleIcon className="w-4 h-4 mr-2" />Edit Profil</Button>
-                     <Link to={`/cetak-rapot/${studentId}`}><Button><FileTextIcon className="w-4 h-4 mr-2" />Cetak Rapor</Button></Link>
-                </div>
-            </header>
-            
-            <AiStudentSummary studentDetails={studentDetails} />
-            
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} color="from-green-500 to-emerald-400" />
-                <StatCard icon={AlertCircleIcon} label="Total Izin/Sakit" value={`${attendanceSummary.Izin + attendanceSummary.Sakit} hari`} color="from-yellow-500 to-amber-400" />
-                <StatCard icon={XCircleIcon} label="Total Alpha" value={`${attendanceSummary.Alpha} hari`} color="from-orange-500 to-red-400" />
-                <StatCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} color="from-red-500 to-rose-400" />
-            </section>
+                </header>
+                
+                <AiStudentSummary studentDetails={studentDetails} />
+                
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} color="from-green-500 to-emerald-400" />
+                    <StatCard icon={AlertCircleIcon} label="Total Izin/Sakit" value={`${attendanceSummary.Izin + attendanceSummary.Sakit} hari`} color="from-yellow-500 to-amber-400" />
+                    <StatCard icon={XCircleIcon} label="Total Alpha" value={`${attendanceSummary.Alpha} hari`} color="from-orange-500 to-red-400" />
+                    <StatCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} color="from-red-500 to-rose-400" />
+                </section>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <div className="flex justify-center border-b border-gray-200 dark:border-gray-700 mb-6">
-                    <TabsList className="bg-gray-200/50 dark:bg-gray-900/50">
-                        <TabsTrigger value="grades">Nilai</TabsTrigger>
-                        <TabsTrigger value="activity">Keaktifan</TabsTrigger>
-                        <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
-                        <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
-                        <TabsTrigger value="communication">Komunikasi</TabsTrigger>
-                        <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
-                    </TabsList>
-                </div>
-                <TabsContent value="grades">
-                    <Card><CardHeader><CardTitle>Nilai Akademik</CardTitle><CardDescription>Daftar nilai sumatif atau formatif yang telah diinput.</CardDescription><div className="absolute top-6 right-6"><Button onClick={() => setModalState({ type: 'academic', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Nilai</Button></div></CardHeader>
-                        <CardContent><GradesHistory records={academicRecords} onEdit={(r) => setModalState({type: 'academic', data: r})} onDelete={(id) => handleDelete('academic_records', id)} isOnline={isOnline} /></CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="activity">
-                    <Card><CardHeader><CardTitle>Poin Keaktifan Kelas</CardTitle><CardDescription>Catatan poin untuk keaktifan siswa saat pelajaran.</CardDescription><div className="absolute top-6 right-6"><Button onClick={() => setModalState({ type: 'quiz', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Poin</Button></div></CardHeader>
-                        <CardContent><ActivityPointsHistory records={quizPoints} onEdit={(r) => setModalState({type: 'quiz', data: r})} onDelete={(id) => handleDelete('quiz_points', id)} isOnline={isOnline} /></CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="violations">
-                     <Card><CardHeader><CardTitle>Riwayat Pelanggaran</CardTitle><CardDescription>Semua catatan pelanggaran tata tertib sekolah.</CardDescription><div className="absolute top-6 right-6"><Button onClick={() => setModalState({ type: 'violation', mode: 'add', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Pelanggaran</Button></div></CardHeader>
-                        <CardContent>
-                            {violations.length > 0 ? (<div className="space-y-3">{[...violations].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(v => (<div key={v.id} className="group flex items-center gap-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20"><div><p className="font-semibold text-gray-800 dark:text-gray-200">{v.description}</p><p className="text-xs text-gray-500 dark:text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')} - <span className="font-bold text-red-500">{v.points} poin</span></p></div><div className="ml-auto flex opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'violation', mode: 'edit', data: v})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDelete('violations', v.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div></div>))}</div>) : (<div className="text-center py-16 text-gray-500"><ShieldAlertIcon className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600"/><h4 className="font-semibold">Tidak Ada Pelanggaran</h4><p>Siswa ini memiliki catatan perilaku yang bersih.</p></div>)}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="reports">
-                    <Card><CardHeader><CardTitle>Catatan Guru</CardTitle><CardDescription>Catatan perkembangan, laporan, atau insiden khusus.</CardDescription><div className="absolute top-6 right-6"><Button onClick={() => setModalState({ type: 'report', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Catatan</Button></div></CardHeader>
-                        <CardContent>
-                            {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="group relative p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50"><div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'report', data: r})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDelete('reports', r.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div><h4 className="font-bold">{r.title}</h4><p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-700 dark:text-gray-300">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-500"><BookOpenIcon className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan guru untuk siswa ini.</p></div>)}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                 <TabsContent value="communication">
-                    <Card className="flex flex-col h-[70vh]">
-                        <CardHeader><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Orang Tua</CardTitle></CardHeader>
-                        <CardContent className="flex-1 overflow-y-auto space-y-4 p-4 bg-gray-100 dark:bg-gray-800/50">
-                            {communications.map(msg => (
-                                <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
-                                    {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" /></div>}
-                                    <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'teacher' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-white dark:bg-gray-700 rounded-bl-none'}`}>
-                                        <p className="whitespace-pre-wrap">{msg.message}</p>
-                                        <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'teacher' ? 'text-blue-200 justify-end' : 'text-gray-500 dark:text-gray-400 justify-end'}`}>
-                                          <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
-                                          {msg.sender === 'teacher' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                <Card>
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                      <div className="flex justify-center border-b border-white/10 px-6">
+                          <TabsList className="bg-black/20">
+                              <TabsTrigger value="grades">Nilai</TabsTrigger>
+                              <TabsTrigger value="activity">Keaktifan</TabsTrigger>
+                              <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
+                              <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
+                              <TabsTrigger value="communication">Komunikasi</TabsTrigger>
+                              <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
+                          </TabsList>
+                      </div>
+                      <TabsContent value="grades" className="p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <div><CardTitle>Nilai Akademik</CardTitle><CardDescription>Daftar nilai sumatif atau formatif yang telah diinput.</CardDescription></div>
+                            <Button onClick={() => setModalState({ type: 'academic', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Nilai</Button>
+                          </div>
+                          <GradesHistory records={academicRecords} onEdit={(r) => setModalState({type: 'academic', data: r})} onDelete={(id) => handleDelete('academic_records', id)} isOnline={isOnline} />
+                      </TabsContent>
+                      <TabsContent value="activity" className="p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <div><CardTitle>Poin Keaktifan Kelas</CardTitle><CardDescription>Catatan poin untuk keaktifan siswa saat pelajaran.</CardDescription></div>
+                            <Button onClick={() => setModalState({ type: 'quiz', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Poin</Button>
+                          </div>
+                          <ActivityPointsHistory records={quizPoints} onEdit={(r) => setModalState({type: 'quiz', data: r})} onDelete={(id) => handleDelete('quiz_points', id)} isOnline={isOnline} />
+                      </TabsContent>
+                      <TabsContent value="violations" className="p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <div><CardTitle>Riwayat Pelanggaran</CardTitle><CardDescription>Semua catatan pelanggaran tata tertib sekolah.</CardDescription></div>
+                            <Button onClick={() => setModalState({ type: 'violation', mode: 'add', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Pelanggaran</Button>
+                          </div>
+                          {violations.length > 0 ? (<div className="space-y-3">{[...violations].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(v => (<div key={v.id} className="group flex items-center gap-4 p-3 rounded-lg bg-red-900/20"><div><p className="font-semibold text-white">{v.description}</p><p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')} - <span className="font-bold text-red-400">{v.points} poin</span></p></div><div className="ml-auto flex opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'violation', mode: 'edit', data: v})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDelete('violations', v.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><ShieldAlertIcon className="w-16 h-16 mx-auto mb-4 text-gray-600"/><h4 className="font-semibold">Tidak Ada Pelanggaran</h4><p>Siswa ini memiliki catatan perilaku yang bersih.</p></div>)}
+                      </TabsContent>
+                      <TabsContent value="reports" className="p-6">
+                           <div className="flex justify-between items-center mb-4">
+                            <div><CardTitle>Catatan Guru</CardTitle><CardDescription>Catatan perkembangan, laporan, atau insiden khusus.</CardDescription></div>
+                            <Button onClick={() => setModalState({ type: 'report', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Catatan</Button>
+                           </div>
+                           {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="group relative p-4 rounded-lg bg-black/20"><div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'report', data: r})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDelete('reports', r.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div><h4 className="font-bold text-white">{r.title}</h4><p className="text-xs text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-300">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><BookOpenIcon className="w-16 h-16 mx-auto mb-4 text-gray-600"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan guru untuk siswa ini.</p></div>)}
+                      </TabsContent>
+                      <TabsContent value="communication">
+                          <div className="flex flex-col h-[70vh]">
+                            <div className="p-6"><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Orang Tua</CardTitle></div>
+                            <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
+                                {communications.map(msg => (
+                                    <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
+                                        {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
+                                        <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'teacher' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
+                                            <p className="whitespace-pre-wrap">{msg.message}</p>
+                                            <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'teacher' ? 'text-blue-200 justify-end' : 'text-gray-400 justify-end'}`}>
+                                            <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
+                                            {msg.sender === 'teacher' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                                            </div>
                                         </div>
+                                        {msg.sender === 'teacher' && <img src={user?.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
                                     </div>
-                                    {msg.sender === 'teacher' && <img src={user?.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </CardContent>
-                        <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessageMutation.mutate(newMessage); }} className="p-4 border-t border-gray-200/50 dark:border-white/10 flex items-center gap-2">
-                            <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={!isOnline || sendMessageMutation.isPending}/>
-                            <Button type="submit" size="icon" disabled={!isOnline || !newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
-                        </form>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="portal">
-                    <Card><CardHeader><CardTitle>Akses Portal Orang Tua</CardTitle><CardDescription>Bagikan kode akses ini kepada orang tua atau wali siswa.</CardDescription></CardHeader>
-                        <CardContent className="text-center">
-                            {student.access_code ? (
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center gap-4">
-                                        <p className="text-2xl font-mono font-bold tracking-widest text-gray-800 dark:text-gray-200">{student.access_code}</p>
-                                        <Button size="icon" variant="ghost" onClick={handleCopyAccessCode}>
-                                            {copied ? <CopyCheckIcon className="w-5 h-5 text-green-500"/> : <CopyIcon className="w-5 h-5"/>}
-                                        </Button>
-                                    </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">Kode ini unik untuk siswa ini. Jangan bagikan kepada pihak yang tidak berkepentingan.</p>
-                                    <Button variant="outline" size="sm" onClick={handleGenerateAccessCode} disabled={!isOnline || studentMutation.isPending}>Buat Kode Baru</Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-4 py-8">
-                                    <KeyRoundIcon className="w-16 h-16 mx-auto text-gray-400"/>
-                                    <p>Siswa ini belum memiliki kode akses portal.</p>
-                                    <Button onClick={handleGenerateAccessCode} disabled={!isOnline || studentMutation.isPending}>
-                                        <SparklesIcon className="w-4 h-4 mr-2"/> Buat Kode Akses
-                                    </Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </div>
+                            <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessageMutation.mutate(newMessage); }} className="p-4 border-t border-white/10 flex items-center gap-2">
+                                <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={!isOnline || sendMessageMutation.isPending}/>
+                                <Button type="submit" size="icon" disabled={!isOnline || !newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
+                            </form>
+                          </div>
+                      </TabsContent>
+                      <TabsContent value="portal" className="p-6">
+                          <CardTitle>Akses Portal Orang Tua</CardTitle>
+                          <CardDescription>Bagikan kode akses ini kepada orang tua atau wali siswa.</CardDescription>
+                          <div className="flex justify-center mt-6">
+                              {student.access_code ? (
+                                  <div className="w-full max-w-md p-6 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 shadow-xl text-white text-center">
+                                      <p className="font-semibold">Kode Akses untuk {student.name}</p>
+                                      <div className="my-4 p-4 bg-black/20 rounded-lg border border-white/20">
+                                          <p className="text-4xl font-mono font-bold tracking-[0.3em]">{student.access_code}</p>
+                                      </div>
+                                      <p className="text-xs text-indigo-200 mb-6">Kode ini unik dan bersifat rahasia. Gunakan untuk masuk ke portal siswa.</p>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                          <Button onClick={handleCopyAccessCode} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 backdrop-blur-sm col-span-2 sm:col-span-1">{copied ? <CopyCheckIcon className="w-4 h-4 mr-2 text-green-400"/> : <CopyIcon className="w-4 h-4 mr-2"/>}{copied ? 'Disalin!' : 'Salin'}</Button>
+                                          <Button onClick={handleShare} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 backdrop-blur-sm"><Share2Icon className="w-4 h-4 mr-2"/>Bagikan</Button>
+                                          <Button onClick={handlePrint} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 backdrop-blur-sm"><PrinterIcon className="w-4 h-4 mr-2"/>Cetak Slip</Button>
+                                          <Button onClick={handleGenerateAccessCode} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 backdrop-blur-sm" disabled={!isOnline || studentMutation.isPending}>Buat Baru</Button>
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <div className="text-center space-y-4 py-8">
+                                      <KeyRoundIcon className="w-16 h-16 mx-auto text-gray-400"/>
+                                      <p>Siswa ini belum memiliki kode akses portal.</p>
+                                      <Button onClick={handleGenerateAccessCode} disabled={!isOnline || studentMutation.isPending}>
+                                          <SparklesIcon className="w-4 h-4 mr-2"/> Buat Kode Akses
+                                      </Button>
+                                  </div>
+                              )}
+                          </div>
+                      </TabsContent>
+                  </Tabs>
+                </Card>
+            </div>
+
+            <div className="hidden print:block">
+                <div id="printable-slip">
+                    <div className="p-8 text-black" style={{ width: '12cm', fontFamily: 'sans-serif' }}>
+                        <h3 className="text-lg font-bold">Informasi Akses Portal Siswa</h3>
+                        <p className="text-sm mb-4">Harap simpan informasi ini dengan baik.</p>
+                        <div className="border-t border-b border-gray-300 py-4 my-4">
+                            <p className="text-xs">Nama Siswa:</p>
+                            <p className="text-base font-semibold">{student.name}</p>
+                            <p className="text-xs mt-2">Kelas:</p>
+                            <p className="text-base font-semibold">{student.classes?.name || 'N/A'}</p>
+                        </div>
+                        <p className="text-center text-sm">Gunakan kode berikut untuk masuk:</p>
+                        <div className="text-center my-2 p-3 bg-gray-100 rounded-md">
+                            <p className="text-3xl font-mono font-bold tracking-widest">{student.access_code}</p>
+                        </div>
+                        <p className="text-center text-xs mt-4">
+                            Masuk melalui: <span className="font-mono">{window.location.origin}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
 
             {modalState.type !== 'closed' && modalState.type !== 'confirmDelete' && (
                 <Modal isOpen={true} onClose={() => setModalState({ type: 'closed' })} title={

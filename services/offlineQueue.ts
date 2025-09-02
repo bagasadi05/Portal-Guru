@@ -1,10 +1,12 @@
 // A simple queueing system for offline mutations using localStorage.
+import { Database } from "./database.types";
 
 const QUEUE_KEY = 'supabase-offline-queue';
 
 export type QueuedMutation = {
     id: string; // timestamp + random
-    table: string;
+    // FIX: Use a more specific type for table names to ensure type safety.
+    table: keyof Database['public']['Tables'];
     operation: 'upsert' | 'insert' | 'update' | 'delete';
     payload: any;
     onConflict?: string; // For upsert

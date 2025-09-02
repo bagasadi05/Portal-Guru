@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+// FIX: Use named imports for react-router-dom hooks and components
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase';
 import { useToast } from '../../hooks/useToast';
@@ -10,6 +11,7 @@ import { Input } from '../ui/Input';
 import { MailIcon, LockIcon, UserCircleIcon, EyeIcon, EyeOffIcon } from '../Icons';
 
 const LoginPage: React.FC = () => {
+  // FIX: Use useNavigate hook directly
   const navigate = useNavigate();
   const { login, signup, session } = useAuth();
   const toast = useToast();
@@ -34,9 +36,6 @@ const LoginPage: React.FC = () => {
     }
   }, [session, navigate]);
   
-  const handleFocus = () => document.body.setAttribute('data-focused', 'true');
-  const handleBlur = () => document.body.setAttribute('data-focused', 'false');
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -89,10 +88,7 @@ const LoginPage: React.FC = () => {
   return (
     <>
         <div className="flex items-center justify-center min-h-screen">
-            <div className="glass-container">
-                <div className="holographic-orb-container">
-                    <div className="holographic-orb"><div className="orb-glow"></div><div className="orb-core"></div><div className="orb-ring orb-ring-1"></div><div className="orb-ring orb-ring-2"></div></div>
-                </div>
+            <div className="login-card">
                 
                 <h1 className="form-title">
                     {isLoginMode ? 'Selamat Datang Kembali' : 'Buat Akun Guru'}
@@ -103,15 +99,15 @@ const LoginPage: React.FC = () => {
                 
                 <form onSubmit={handleSubmit}>
                     {!isLoginMode && (
-                        <div className="form-group-icon"><UserCircleIcon className="icon h-5 w-5" /><input type="text" placeholder="Nama Lengkap" required value={name} onChange={e => setName(e.target.value)} onFocus={handleFocus} onBlur={handleBlur} /></div>
+                        <div className="form-group-icon"><UserCircleIcon className="icon h-5 w-5" /><input type="text" placeholder="Nama Lengkap" required value={name} onChange={e => setName(e.target.value)} /></div>
                     )}
-                    <div className="form-group-icon"><MailIcon className="icon h-5 w-5" /><input type="email" placeholder="Email" required value={email} onChange={e => setEmail(e.target.value)} onFocus={handleFocus} onBlur={handleBlur}/></div>
-                    <div className="form-group-icon"><LockIcon className="icon h-5 w-5" /><input type={showPassword ? 'text' : 'password'} placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} onFocus={handleFocus} onBlur={handleBlur} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white z-10">{showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}</button></div>
+                    <div className="form-group-icon"><MailIcon className="icon h-5 w-5" /><input type="email" placeholder="Email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
+                    <div className="form-group-icon"><LockIcon className="icon h-5 w-5" /><input type={showPassword ? 'text' : 'password'} placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 z-10">{showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}</button></div>
                     {!isLoginMode && (
-                        <div className="form-group-icon"><LockIcon className="icon h-5 w-5" /><input type={showPassword ? 'text' : 'password'} placeholder="Konfirmasi Password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onFocus={handleFocus} onBlur={handleBlur} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white z-10">{showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}</button></div>
+                        <div className="form-group-icon"><LockIcon className="icon h-5 w-5" /><input type={showPassword ? 'text' : 'password'} placeholder="Konfirmasi Password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 z-10">{showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}</button></div>
                     )}
                     
-                    {error && <p className="text-center text-sm text-yellow-300 mb-4">{error}</p>}
+                    {error && <p className="text-center text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
                     
                     <button type="submit" className="form-btn" disabled={loading}>
                         {loading ? 'Memproses...' : (isLoginMode ? 'Masuk' : 'Daftar')}
@@ -125,7 +121,8 @@ const LoginPage: React.FC = () => {
                     {isLoginMode && <button type="button" onClick={() => setIsForgotModalOpen(true)}>Lupa password?</button>}
                 </div>
                 
-                <div className="text-center mt-6 border-t border-white/10 pt-4">
+                <div className="text-center mt-6 border-t border-gray-200 dark:border-white/10 pt-4">
+                     {/* FIX: Use Link component directly */}
                      <Link to="/" className="form-links a">
                         Kembali ke pemilihan peran
                     </Link>

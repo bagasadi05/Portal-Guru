@@ -35,17 +35,17 @@ const statusOptions = [
 ];
 
 const statusStyles: Record<string, { active: string; hover: string; icon: string }> = {
-    green: { active: 'border-green-500 shadow-lg shadow-green-500/50', hover: 'hover:border-green-500/50', icon: 'text-green-400' },
-    yellow: { active: 'border-yellow-500 shadow-lg shadow-yellow-500/50', hover: 'hover:border-yellow-500/50', icon: 'text-yellow-400' },
-    blue: { active: 'border-blue-500 shadow-lg shadow-blue-500/50', hover: 'hover:border-blue-500/50', icon: 'text-blue-400' },
-    red: { active: 'border-red-500 shadow-lg shadow-red-500/50', hover: 'hover:border-red-500/50', icon: 'text-red-400' },
+    green: { active: 'border-green-500 shadow-lg shadow-green-500/20', hover: 'hover:border-green-500/50', icon: 'text-green-500' },
+    yellow: { active: 'border-yellow-500 shadow-lg shadow-yellow-500/20', hover: 'hover:border-yellow-500/50', icon: 'text-yellow-500' },
+    blue: { active: 'border-blue-500 shadow-lg shadow-blue-500/20', hover: 'hover:border-blue-500/50', icon: 'text-blue-500' },
+    red: { active: 'border-red-500 shadow-lg shadow-red-500/20', hover: 'hover:border-red-500/50', icon: 'text-red-500' },
 };
 
 const buttonStatusStyles: Record<string, { active: string; hover: string; }> = {
-    green: { active: 'bg-green-500/20 border-green-500', hover: 'hover:border-green-500/50' },
-    yellow: { active: 'bg-yellow-500/20 border-yellow-500', hover: 'hover:border-yellow-500/50' },
-    blue: { active: 'bg-blue-500/20 border-blue-500', hover: 'hover:border-blue-500/50' },
-    red: { active: 'bg-red-500/20 border-red-500', hover: 'hover:border-red-500/50' },
+    green: { active: 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300', hover: 'hover:border-green-500/50' },
+    yellow: { active: 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300', hover: 'hover:border-yellow-500/50' },
+    blue: { active: 'bg-blue-500/20 border-blue-500 text-blue-700 dark:text-blue-300', hover: 'hover:border-blue-500/50' },
+    red: { active: 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300', hover: 'hover:border-red-500/50' },
 };
 
 const AttendancePage: React.FC = () => {
@@ -222,13 +222,21 @@ const AttendancePage: React.FC = () => {
         const endDate = new Date(year, monthNum, 0).toISOString().split('T')[0];
 
         const [studentsRes, attendanceRes, classesRes] = await Promise.all([
-            supabase.from('students').select('*, classes(name)').eq('user_id', user.id),
+            supabase.from('students').select('*').eq('user_id', user.id),
             supabase.from('attendance').select('*').eq('user_id', user.id).gte('date', startDate).lte('date', endDate),
             supabase.from('classes').select('id, name').eq('user_id', user.id),
         ]);
 
         if (studentsRes.error || attendanceRes.error || classesRes.error) throw new Error('Gagal mengambil data untuk ekspor.');
-        return { students: studentsRes.data as StudentWithClass[], attendance: attendanceRes.data, classes: classesRes.data };
+        
+        // FIX: Manually join student with class name as the relationship is not defined in Supabase schema.
+        const classMap = new Map((classesRes.data || []).map(c => [c.id, { name: c.name }]));
+        const studentsWithClasses = (studentsRes.data || []).map(s => ({
+            ...s,
+            classes: classMap.get(s.class_id) || null
+        }));
+        
+        return { students: studentsWithClasses, attendance: attendanceRes.data, classes: classesRes.data };
     };
 
     const handleExport = async () => {
@@ -265,7 +273,7 @@ const AttendancePage: React.FC = () => {
                 // --- HEADER ---
                 doc.setFontSize(18);
                 doc.setFont('helvetica', 'bold');
-                doc.setTextColor('#4f46e5');
+                doc.setTextColor('#0284c7');
                 doc.text('Laporan Absensi Bulanan', 14, yPos);
                 
                 doc.setFontSize(12);
@@ -319,7 +327,7 @@ const AttendancePage: React.FC = () => {
                 
                 const tableOptions: any = {
                     theme: 'grid',
-                    headStyles: { fillColor: '#4f46e5', textColor: '#ffffff', fontStyle: 'bold', halign: 'center' },
+                    headStyles: { fillColor: '#0284c7', textColor: '#ffffff', fontStyle: 'bold', halign: 'center' },
                     alternateRowStyles: { fillColor: '#f3f4f6' },
                     styles: { fontSize: 7, cellPadding: 1.5, lineColor: '#d1d5db', lineWidth: 0.5 },
                     columnStyles: {
@@ -417,66 +425,55 @@ const AttendancePage: React.FC = () => {
         }
     };
 
-    const inputStyles = "bg-white/10 border-white/20 placeholder:text-gray-400 text-white focus:bg-white/20 focus:border-purple-400";
-
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col">
-            <div className="holographic-orb-container" style={{ top: '-40px', width: '120px', height: '120px', opacity: 0.7 }}>
-                <div className="holographic-orb">
-                    <div className="orb-glow"></div>
-                    <div className="orb-core"></div>
-                    <div className="orb-ring orb-ring-1"></div>
-                    <div className="orb-ring orb-ring-2"></div>
-                </div>
-            </div>
-
-            <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Pendataan Absensi</h1>
-                    <p className="mt-1 text-indigo-200">Kelola kehadiran siswa dengan mudah dan futuristik.</p>
+                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Pendataan Absensi</h1>
+                    <p className="mt-1 text-gray-600 dark:text-indigo-200">Kelola kehadiran siswa dengan mudah dan cepat.</p>
                 </div>
                 <div className="flex gap-2 self-end md:self-center">
-                    <Button onClick={handleAnalyzeAttendance} variant="outline" disabled={!isOnline} className={`bg-white/10 border-white/20 hover:bg-white/20 ${!isOnline && 'opacity-50'}`}><BrainCircuitIcon className="w-4 h-4 mr-2 text-purple-400"/>Analisis AI</Button>
-                    <Button onClick={() => setIsExportModalOpen(true)} variant="outline" className={`bg-white/10 border-white/20 hover:bg-white/20`}><DownloadCloudIcon className="w-4 h-4 mr-2"/>Export</Button>
+                    <Button onClick={handleAnalyzeAttendance} variant="outline" disabled={!isOnline}><BrainCircuitIcon className="w-4 h-4 mr-2 text-sky-500 dark:text-purple-400"/>Analisis AI</Button>
+                    <Button onClick={() => setIsExportModalOpen(true)} variant="outline"><DownloadCloudIcon className="w-4 h-4 mr-2"/>Export</Button>
                 </div>
             </header>
 
-            <div className="relative z-10 bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div><label htmlFor="class-select" className="block text-sm font-medium mb-1 text-gray-200">Pilih Kelas</label><Select id="class-select" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} disabled={isLoadingClasses} className={inputStyles}><option value="" disabled className="bg-gray-900">-- Pilih Kelas --</option>{classes?.map(c => <option key={c.id} value={c.id} className="bg-gray-800 text-white">{c.name}</option>)}</Select></div>
-                <div><label htmlFor="date-select" className="block text-sm font-medium mb-1 text-gray-200">Tanggal</label><Input id="date-select" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={inputStyles}/></div>
+            <div className="bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div><label htmlFor="class-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Pilih Kelas</label><Select id="class-select" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} disabled={isLoadingClasses}><option value="" disabled>-- Pilih Kelas --</option>{classes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
+                <div><label htmlFor="date-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Tanggal</label><Input id="date-select" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></div>
             </div>
 
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 {statusOptions.map(({ value, label, icon: Icon, color }) => {
                     const styles = statusStyles[color];
                     return (
                         <div key={value} onClick={() => setQuickMarkStatus(quickMarkStatus === value ? null : value)}
-                            className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all duration-300 transform-gpu bg-black/20 border-2 ${quickMarkStatus === value ? styles.active : 'border-white/20'} ${styles.hover} hover:-translate-y-1`}>
+                            className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all duration-300 transform-gpu bg-white dark:bg-black/20 border-2 ${quickMarkStatus === value ? styles.active : 'border-gray-200 dark:border-white/20'} ${styles.hover} hover:-translate-y-1`}>
                             <Icon className={`w-6 h-6 ${styles.icon}`}/>
-                            <div><p className="font-bold text-white">{label}</p><p className="text-xs text-gray-400">{attendanceSummary[value]} siswa</p></div>
+                            <div><p className="font-bold text-gray-900 dark:text-white">{label}</p><p className="text-xs text-gray-500 dark:text-gray-400">{attendanceSummary[value]} siswa</p></div>
                         </div>
                     );
                 })}
             </div>
 
-            <main className="relative z-10 flex-grow bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-white/10 flex justify-between items-center">
-                    <h3 className="font-semibold text-lg text-white">Daftar Siswa ({students?.length || 0})</h3>
-                    <Button onClick={markRestAsPresent} size="sm" variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20" disabled={unmarkedStudents.length === 0}>Tandai Sisa Hadir ({unmarkedStudents.length})</Button>
+            <main className="flex-grow bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Daftar Siswa ({students?.length || 0})</h3>
+                    <Button onClick={markRestAsPresent} size="sm" variant="outline" disabled={unmarkedStudents.length === 0}>Tandai Sisa Hadir ({unmarkedStudents.length})</Button>
                 </div>
                 
                 <div className="flex-grow overflow-y-auto">
                     {isLoadingStudents ? <div className="p-8 text-center">Memuat daftar siswa...</div> :
                      !students || students.length === 0 ? <div className="p-8 text-center text-gray-400">Pilih kelas untuk memulai absensi.</div> :
-                     <div className="divide-y divide-white/10">
+                     <div className="divide-y divide-gray-200 dark:divide-white/10">
                         {students.map((student, index) => {
                             const record = attendanceRecords[student.id];
                             return (
-                                <div key={student.id} onClick={() => handleQuickMark(student.id)} className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center cursor-pointer hover:bg-white/5">
+                                <div key={student.id} onClick={() => handleQuickMark(student.id)} className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5">
                                     <div className="flex items-center gap-4 col-span-1 md:col-span-1">
-                                        <span className="text-sm font-mono text-gray-400 w-6 text-center">{index + 1}.</span>
+                                        <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-6 text-center">{index + 1}.</span>
                                         <img src={student.avatar_url} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
-                                        <p className="font-semibold text-white">{student.name}</p>
+                                        <p className="font-semibold text-gray-900 dark:text-white">{student.name}</p>
                                     </div>
 
                                     <div className="col-span-1 md:col-span-2 flex flex-col md:flex-row items-stretch md:items-center gap-2 md:pl-10">
@@ -485,7 +482,7 @@ const AttendancePage: React.FC = () => {
                                                 const btnStyles = buttonStatusStyles[opt.color];
                                                 return (
                                                 <button key={opt.value} onClick={(e) => { e.stopPropagation(); handleStatusChange(student.id, opt.value); }}
-                                                    className={`px-3 py-2 text-sm rounded-lg flex items-center justify-center gap-2 transition-all border-2 ${record?.status === opt.value ? `${btnStyles.active} text-white` : `bg-white/5 border-transparent text-gray-300 ${btnStyles.hover}`}`}>
+                                                    className={`px-3 py-2 text-sm rounded-lg flex items-center justify-center gap-2 transition-all border-2 ${record?.status === opt.value ? `${btnStyles.active}` : `bg-gray-100 dark:bg-white/5 border-transparent text-gray-600 dark:text-gray-300 ${btnStyles.hover}`}`}>
                                                     <opt.icon className="w-4 h-4"/>
                                                     <span>{opt.label}</span>
                                                 </button>
@@ -494,7 +491,7 @@ const AttendancePage: React.FC = () => {
                                         {(record?.status === AttendanceStatus.Izin || record?.status === AttendanceStatus.Sakit) &&
                                             <div className="relative flex-grow md:max-w-xs animate-fade-in">
                                                 <PencilIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-                                                <Input value={record.note || ''} onChange={(e) => handleNoteChange(student.id, e.target.value)} onClick={e => e.stopPropagation()} placeholder="Tambah catatan..." className="pl-9 h-10 bg-white/10 border-white/20"/>
+                                                <Input value={record.note || ''} onChange={(e) => handleNoteChange(student.id, e.target.value)} onClick={e => e.stopPropagation()} placeholder="Tambah catatan..." className="pl-9 h-10"/>
                                             </div>
                                         }
                                     </div>
@@ -506,8 +503,8 @@ const AttendancePage: React.FC = () => {
                 </div>
             </main>
             
-            <footer className="relative z-10 mt-6 flex justify-end">
-                <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/40 transition-all duration-300 hover:-translate-y-0.5">
+            <footer className="mt-6 flex justify-end">
+                <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto">
                     {isSaving ? 'Menyimpan...' : (isOnline ? 'Simpan Absensi' : 'Simpan Offline')}
                 </Button>
             </footer>

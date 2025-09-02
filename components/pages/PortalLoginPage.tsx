@@ -21,16 +21,17 @@ const PortalLoginPage: React.FC = () => {
         return;
     }
 
-    // Menggunakan fungsi RPC baru untuk validasi yang aman dan case-insensitive
-    const { data: students, error: rpcError } = await supabase.rpc(
-        'verify_access_code',
-        { access_code_param: code }
-    );
+    // Use the dedicated RPC function for verifying the access code.
+    // This is more secure and reliable, especially if RLS is active.
+    const { data: students, error: rpcError } = await supabase
+        .rpc('verify_access_code', {
+            access_code_param: code
+        });
     
     setLoading(false);
 
     if (rpcError) {
-        console.error("Supabase portal login error:", rpcError);
+        console.error("Supabase portal login RPC error:", rpcError);
         setError("Terjadi kesalahan saat memverifikasi kode. Silakan coba lagi nanti.");
         return;
     }
@@ -40,23 +41,28 @@ const PortalLoginPage: React.FC = () => {
         return;
     }
     
+    if (students.length > 1) {
+        // The RPC might handle this, but we add a client-side check for safety.
+        setError("Ditemukan beberapa siswa dengan kode akses yang mirip. Harap hubungi guru Anda untuk kode yang unik.");
+        return;
+    }
+    
     const student = students[0];
 
-    // Simpan kode yang BENAR dari database ke sessionStorage
-    if (student.access_code) {
-        sessionStorage.setItem('portal_access_code', student.access_code);
-        navigate(`/portal/${student.id}`);
-    } else {
-        setError("Terjadi kesalahan internal. Kode akses tidak dapat diverifikasi.");
-    }
+    // The RPC returns the correctly-cased access code from the database.
+    // We must store *this* code in the session, not the user's input,
+    // to ensure case-sensitive functions on the next page work correctly.
+    sessionStorage.setItem('portal_access_code', student.access_code!);
+    navigate(`/portal/${student.id}`);
   };
+
 
   const handleFocus = () => document.body.setAttribute('data-focused', 'true');
   const handleBlur = () => document.body.setAttribute('data-focused', 'false');
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-        <div className="glass-container">
+        <div className="login-card">
             <div className="holographic-orb-container">
                 <div className="holographic-orb">
                     <div className="orb-glow"></div>

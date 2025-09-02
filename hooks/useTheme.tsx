@@ -23,16 +23,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const root = window.document.documentElement;
-    const body = window.document.body;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-      body.classList.add('cosmic-bg');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      body.classList.remove('cosmic-bg');
-      localStorage.setItem('theme', 'light');
-    }
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

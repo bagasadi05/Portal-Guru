@@ -45,9 +45,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<{}>, State> 
               <details className="mt-6 text-left bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
                 <summary className="cursor-pointer font-semibold">Detail Error</summary>
                 <pre className="mt-2 text-sm whitespace-pre-wrap">
-                  {this.state.error.toString()}
-                  <br />
-                  {this.state.error.stack}
+                  {this.state.error.message}
                 </pre>
               </details>
             )}

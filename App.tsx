@@ -1,6 +1,7 @@
 
 import React, { lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+// FIX: Use named imports for react-router-dom components
+import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './hooks/useTheme';
 import { ToastProvider } from './hooks/useToast';
@@ -43,9 +44,11 @@ const PrivateRoutes = () => {
 
   return session ? (
     <Layout>
+      {/* FIX: Use Outlet component directly */}
       <Outlet />
     </Layout>
   ) : (
+    // FIX: Use Navigate component directly
     <Navigate to="/guru-login" replace />
   );
 };
@@ -73,27 +76,44 @@ function App() {
           <AuthProvider>
             <ToastProvider>
               <Suspense fallback={loadingSpinner}>
+                {/* FIX: Use HashRouter component directly */}
                 <HashRouter>
+                  {/* FIX: Use Routes component directly */}
                   <Routes>
+                    {/* FIX: Use Route component directly */}
                     <Route path="/" element={<RoleSelectionPage />} />
+                    {/* FIX: Use Route component directly */}
                     <Route path="/guru-login" element={<LoginPage />} />
+                    {/* FIX: Use Route component directly */}
                     <Route path="/portal-login" element={<PortalLoginPage />} />
+                    {/* FIX: Use Route component directly */}
                     <Route path="/portal/:studentId" element={<ParentPortalPage />} />
                     
+                    {/* FIX: Use Route component directly */}
                     <Route element={<PrivateRoutes />}>
+                      {/* FIX: Use Route component directly */}
                       <Route path="/dashboard" element={<DashboardPage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/absensi" element={<AttendancePage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/siswa" element={<StudentsPage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/siswa/:studentId" element={<StudentDetailPage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/jadwal" element={<SchedulePage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/pengaturan" element={<SettingsPage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/tugas" element={<TasksPage />} />
+                      {/* FIX: Use Route component directly */}
                       <Route path="/input-massal" element={<MassInputPage />} />
                     </Route>
                     
                     {/* Report page has no main layout */}
+                    {/* FIX: Use Route component directly */}
                     <Route path="/cetak-rapot/:studentId" element={<ReportPage />} />
 
+                    {/* FIX: Use Route and Navigate components directly */}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </HashRouter>

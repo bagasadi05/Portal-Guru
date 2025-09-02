@@ -1,5 +1,7 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+// FIX: Use named imports for react-router-dom hooks
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -10,8 +12,7 @@ import { AttendanceStatus } from '../../types';
 import { Database } from '../../services/database.types';
 import { GoogleGenAI, Type } from '@google/genai';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import 'jspdf-autotable';
+import { generateStudentReport, ReportData as ReportDataType } from '../../services/pdfGenerator';
 
 
 type StudentRow = Database['public']['Tables']['students']['Row'];
@@ -38,23 +39,32 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const fetchReportData = async (studentId: string | undefined, userId: string): Promise<ReportData> => {
     if (!studentId) throw new Error("Student ID is required.");
     
-    const studentRes = await supabase.from('students').select('*, classes(id, name)').eq('id', studentId).eq('user_id', userId).single();
+    // FIX: Fetch student data without the direct join, which was causing an error.
+    const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', userId).single();
     if (studentRes.error) throw new Error(studentRes.error.message);
     
-    const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes] = await Promise.all([
+    const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classRes] = await Promise.all([
         supabase.from('reports').select('*').eq('student_id', studentId),
         supabase.from('attendance').select('*').eq('student_id', studentId),
         supabase.from('academic_records').select('*').eq('student_id', studentId),
         supabase.from('violations').select('*').eq('student_id', studentId),
-        supabase.from('quiz_points').select('*').eq('student_id', studentId)
+        supabase.from('quiz_points').select('*').eq('student_id', studentId),
+        // FIX: Fetch the class separately.
+        supabase.from('classes').select('id, name').eq('id', studentRes.data.class_id).single(),
     ]);
 
-    if (reportsRes.error || attendanceRes.error || academicRes.error || violationsRes.error || quizPointsRes.error) {
+    if (reportsRes.error || attendanceRes.error || academicRes.error || violationsRes.error || quizPointsRes.error || classRes.error) {
         throw new Error('Failed to fetch one or more report data components.');
     }
 
+    // FIX: Manually combine student and class data to match the expected `StudentWithClass` type.
+    const studentWithClass: StudentWithClass = {
+        ...studentRes.data,
+        classes: classRes.data ? { id: classRes.data.id, name: classRes.data.name } : null
+    };
+
     return {
-        student: studentRes.data as StudentWithClass,
+        student: studentWithClass,
         reports: reportsRes.data || [],
         attendanceRecords: attendanceRes.data || [],
         academicRecords: academicRes.data || [],
@@ -70,19 +80,31 @@ const getPredicate = (score: number): { predikat: string; deskripsi: string; } =
     return { predikat: 'D', deskripsi: 'Memerlukan bimbingan lebih lanjut.' };
 };
 
-const EditableCell: React.FC<{ value: string | number, onChange: (value: string | number) => void, type?: 'text' | 'number', className?: string }> = ({ value, onChange, type = 'text', className }) => {
+const EditableCell: React.FC<{ value: string | number, onChange: (value: string | number) => void, type?: 'text' | 'number' | 'textarea', className?: string, rows?: number }> = ({ value, onChange, type = 'text', className, rows }) => {
+    if (type === 'textarea') {
+        return (
+            <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className={`w-full p-2 bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/50 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm resize-none ${className}`}
+                rows={rows || 3}
+            />
+        )
+    }
     return (
         <input 
             type={type} 
             value={value}
             onChange={(e) => onChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
-            className={`w-full p-2 bg-transparent focus:bg-yellow-100 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm ${className}`}
+            className={`w-full p-2 bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/50 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm ${className}`}
         />
     );
 };
 
 const ReportPage: React.FC = () => {
+    // FIX: Use useParams hook directly
     const { studentId } = useParams<{ studentId: string }>();
+    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const { user } = useAuth();
     const toast = useToast();
@@ -96,7 +118,7 @@ const ReportPage: React.FC = () => {
         schoolName: "MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN",
         academicYear: "Tahun Ajaran 2025/2026 - Semester Ganjil"
     });
-    const [studentInfo, setStudentInfo] = useState({ name: '', nisn: '', className: '', phase: 'E' });
+    const [studentInfo, setStudentInfo] = useState({ name: '', className: '' });
     const [editableAcademicRecords, setEditableAcademicRecords] = useState<any[]>([]);
     const [editableQuizPoints, setEditableQuizPoints] = useState<any[]>([]);
     const [editableViolations, setEditableViolations] = useState<any[]>([]);
@@ -156,9 +178,7 @@ const ReportPage: React.FC = () => {
         if (data) {
             setStudentInfo({
                 name: data.student.name,
-                nisn: data.student.id.substring(0, 8),
                 className: data.student.classes?.name || 'N/A',
-                phase: 'E'
             });
 
             const processedAcademicRecords = data.academicRecords.map(r => ({
@@ -222,8 +242,8 @@ const ReportPage: React.FC = () => {
         setEditableQuizPoints(prev => [...prev, {
             id: `new-${Date.now()}`,
             quiz_date: new Date().toISOString().slice(0, 10),
-            subject: '',
             quiz_name: '',
+            subject: '',
         }]);
     };
 
@@ -231,381 +251,172 @@ const ReportPage: React.FC = () => {
         setEditableQuizPoints(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleGenerateSubjectNote = async (index: number) => {
-        const record = editableAcademicRecords[index];
-        if (!record.subject || !record.score) {
-            toast.warning("Harap isi mata pelajaran dan nilai terlebih dahulu.");
-            return;
-        }
+    const handleAddViolationRow = () => {
+        setEditableViolations(prev => [...prev, {
+            id: `new-${Date.now()}`,
+            date: new Date().toISOString().slice(0, 10),
+            description: '',
+            points: 0,
+        }]);
+    };
 
+    const handleRemoveViolationRow = (index: number) => {
+        setEditableViolations(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleGenerateSubjectNote = async (index: number, subject: string, score: number) => {
         setGeneratingSubjectNote(index);
         try {
-            const systemInstruction = `Anda adalah seorang guru yang ahli dalam memberikan umpan balik. Berdasarkan skor siswa, tulis deskripsi singkat (1 kalimat) untuk rapor dalam Bahasa Indonesia.`;
-            const prompt = `Siswa mendapatkan nilai ${record.score} untuk mata pelajaran ${record.subject}. Buatkan deskripsi singkat yang konstruktif.`;
+            const systemInstruction = `Anda adalah seorang guru yang memberikan deskripsi singkat dan konstruktif untuk rapor siswa berdasarkan nilai yang diperoleh. Deskripsi harus mencerminkan tingkat pemahaman siswa. Berikan dalam satu kalimat.`;
+            const prompt = `Buat deskripsi rapor untuk mata pelajaran "${subject}" dengan nilai ${score}.`;
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
             
             handleListChange(setEditableAcademicRecords, index, 'deskripsi', response.text);
-            toast.success("Deskripsi berhasil dibuat!");
-        } catch (err) {
+
+        } catch (error) {
             toast.error("Gagal membuat deskripsi AI.");
-            console.error(err);
+            console.error(error);
         } finally {
             setGeneratingSubjectNote(null);
         }
     };
 
-    const handleGenerateAllSubjectNotes = async () => {
-        const recordsToGenerate = editableAcademicRecords.filter(r => !r.deskripsi || getPredicate(r.score).deskripsi === r.deskripsi);
-        if (recordsToGenerate.length === 0) {
-            toast.info("Semua deskripsi mata pelajaran sudah dibuat secara kustom atau oleh AI.");
-            return;
-        }
-
-        setIsGeneratingNote(true);
-        toast.info(`Mulai membuat catatan untuk ${recordsToGenerate.length} mata pelajaran...`);
-
-        let updatedRecords = [...editableAcademicRecords];
-        let successCount = 0;
-
-        for (const record of recordsToGenerate) {
-            const index = updatedRecords.findIndex(r => r.id === record.id);
-            if (index !== -1 && record.subject && record.score) {
-                try {
-                    const systemInstruction = `Anda adalah seorang guru yang ahli dalam memberikan umpan balik. Berdasarkan skor siswa, tulis deskripsi singkat (1 kalimat) untuk rapor dalam Bahasa Indonesia.`;
-                    const prompt = `Siswa mendapatkan nilai ${record.score} untuk mata pelajaran ${record.subject}. Buatkan deskripsi singkat yang konstruktif.`;
-                    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
-                    
-                    updatedRecords[index] = { ...record, deskripsi: response.text };
-                    setEditableAcademicRecords([...updatedRecords]); // Update state iteratively
-                    successCount++;
-                } catch (err) {
-                    console.error(`Failed to generate note for ${record.subject}:`, err);
-                }
-            }
-        }
-        
-        setIsGeneratingNote(false);
-        if (successCount > 0) {
-            toast.success(`${successCount} deskripsi mata pelajaran berhasil dibuat!`);
-        } else {
-            toast.error("Gagal membuat deskripsi mata pelajaran.");
-        }
-    };
-
-    const generatePdf = () => {
-        if (!data) { toast.error("Data laporan belum siap."); return; }
-        setIsExporting(true); toast.info("Membuat file PDF...");
-
+    const handleExportPdf = () => {
+        if (!data || !user) return;
+        setIsExporting(true);
+        toast.info("Membuat PDF rapor...");
+    
         try {
-            const doc = new jsPDF('p', 'pt', 'a4');
-            const pageW = doc.internal.pageSize.getWidth();
-            const margin = 40;
-            let y = 60;
-
-            doc.setFont('Tinos', 'bold');
-            doc.setFontSize(16); doc.text(reportHeader.title, pageW / 2, y, { align: 'center' }); y += 18;
-            doc.setFontSize(14); doc.text(reportHeader.schoolName, pageW / 2, y, { align: 'center' }); y += 16;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
             
-            doc.setFont('Tinos', 'normal');
-            doc.setFontSize(11); doc.text(reportHeader.academicYear, pageW / 2, y, { align: 'center' }); y += 10;
-            doc.setLineWidth(2); doc.line(margin, y, pageW - margin, y); y += 25;
-
-            doc.setFontSize(10);
-            autoTable(doc, {
-                body: [
-                    [{content: 'Nama Siswa', styles: {fontStyle: 'bold'}}, `: ${studentInfo.name}`, {content: 'Kelas', styles: {fontStyle: 'bold'}}, `: ${studentInfo.className}`],
-                    [{content: 'No. Induk / NISN', styles: {fontStyle: 'bold'}}, `: ${studentInfo.nisn}`, {content: 'Fase', styles: {fontStyle: 'bold'}}, `: ${studentInfo.phase}`],
-                ],
-                startY: y, theme: 'plain', styles: { fontSize: 10, font: 'Tinos', cellPadding: 1 },
-                columnStyles: { 0: {cellWidth: 100}, 2: {cellWidth: 100} }
-            });
-            y = (doc as any).lastAutoTable.finalY + 20;
-
-            doc.setFont('Tinos', 'bold'); doc.setFontSize(12); doc.text('A. Nilai Akademik (Sumatif)', margin, y); y += 5;
-            autoTable(doc, {
-                head: [['No', 'Mata Pelajaran', 'Nilai', 'Predikat', 'Deskripsi']],
-                body: editableAcademicRecords.map((r, i) => [i + 1, r.subject, r.score, r.predikat, r.deskripsi]),
-                startY: y, theme: 'grid',
-                headStyles: { fillColor: [229, 231, 235], textColor: 20, fontStyle: 'bold', font: 'Tinos' },
-                styles: { fontSize: 9, font: 'Tinos', cellPadding: 5, lineColor: [0,0,0], lineWidth: 0.5 },
-                columnStyles: { 0: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 40 }, 3: { halign: 'center', cellWidth: 50 }, 4: { halign: 'justify' } }
-            });
-            y = (doc as any).lastAutoTable.finalY + 20;
-
-            doc.setFont('Tinos', 'bold'); doc.setFontSize(12); doc.text('B. Poin Keaktifan & Ekstrakurikuler', margin, y); y += 5;
-            if (editableQuizPoints.length > 0) {
-                autoTable(doc, {
-                    head: [['No', 'Tanggal', 'Mata Pelajaran', 'Aktivitas / Kegiatan']],
-                    body: editableQuizPoints.map((r, i) => [i + 1, r.quiz_date, r.subject, r.quiz_name]),
-                    startY: y, theme: 'grid',
-                    headStyles: { fillColor: [229, 231, 235], textColor: 20, fontStyle: 'bold', font: 'Tinos' },
-                    styles: { fontSize: 9, font: 'Tinos', cellPadding: 5, lineColor: [0,0,0], lineWidth: 0.5 },
-                    columnStyles: { 0: { halign: 'center', cellWidth: 25 }, 1: { halign: 'center', cellWidth: 70 }, 2: { cellWidth: 100 } }
-                });
-                y = (doc as any).lastAutoTable.finalY + 20;
-            } else {
-                doc.setFont('Tinos', 'normal');
-                doc.setFontSize(10);
-                doc.text('Tidak ada poin keaktifan yang dicatat.', margin, y + 10);
-                y += 25;
-            }
-
-            doc.setFont('Tinos', 'bold'); doc.setFontSize(12); doc.text('C. Kepribadian dan Sikap', margin, y); y += 15;
-            doc.setFontSize(11); doc.text('1. Ketidakhadiran', margin, y); y += 15;
-            
-            autoTable(doc, {
-                body: [[
-                    { content: `Sakit: ${editableAttendanceSummary.Sakit} hari`, styles: { halign: 'center' } },
-                    { content: `Izin: ${editableAttendanceSummary.Izin} hari`, styles: { halign: 'center' } },
-                    { content: `Alpha: ${editableAttendanceSummary.Alpha} hari`, styles: { halign: 'center' } }
-                ]],
-                startY: y,
-                theme: 'grid',
-                styles: { font: 'Tinos', fontSize: 10, cellPadding: 5 }
-            });
-            y = (doc as any).lastAutoTable.finalY + 15;
-
-            doc.setFont('Tinos', 'bold'); doc.setFontSize(11); doc.text('2. Catatan Perilaku', margin, y); y += 12;
-            doc.setFont('Tinos', 'normal'); doc.setFontSize(10);
-            const behaviorLines = doc.splitTextToSize(behavioralNote, pageW - margin * 2 - 30);
-            doc.text(behaviorLines, margin + 15, y, { align: 'justify' });
-            y += (behaviorLines.length * 12) + (editableViolations.length > 0 ? 15 : 25);
-
-            if (editableViolations.length > 0) {
-                doc.setFont('Tinos', 'bold'); doc.setFontSize(10); doc.text('Rincian Pelanggaran', margin + 15, y); y += 5;
-                autoTable(doc, {
-                    head: [['No', 'Tanggal', 'Deskripsi', 'Poin']],
-                    body: editableViolations.map((v, i) => [i + 1, v.date, v.description, v.points]),
-                    startY: y, theme: 'grid',
-                    headStyles: { fillColor: [229, 231, 235], textColor: 20, fontStyle: 'bold', font: 'Tinos' },
-                    styles: { fontSize: 9, font: 'Tinos', cellPadding: 5, lineColor: [0,0,0], lineWidth: 0.5 },
-                    columnStyles: { 0: { halign: 'center', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 40 } }
-                });
-                y = (doc as any).lastAutoTable.finalY + 20;
-            }
-
-            doc.setFont('Tinos', 'bold'); doc.setFontSize(12); doc.text('D. Catatan Wali Kelas', margin, y); y += 12;
-            doc.setFont('Tinos', 'normal');
-            const teacherNoteLines = doc.splitTextToSize(teacherNote, pageW - margin * 2 - 20);
-            doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(margin, y - 5, pageW - margin * 2, teacherNoteLines.length * 12 + 20, 'S');
-            doc.text(teacherNoteLines, margin + 10, y + 10, { align: 'justify', maxWidth: pageW - margin * 2 - 20 });
-            y += teacherNoteLines.length * 12 + 30;
-
+            // Construct ReportData from current editable state
+            const currentReportData: ReportDataType = {
+                student: data.student,
+                // Use the editable description as notes for the PDF
+                academicRecords: editableAcademicRecords.map(r => ({ ...r, notes: r.deskripsi })),
+                quizPoints: editableQuizPoints,
+                violations: editableViolations,
+                // Attendance is not editable on this page, use original data
+                attendanceRecords: data.attendanceRecords,
+                // Reports are not directly used in new PDF, but pass them anyway
+                reports: data.reports,
+            };
+    
+            generateStudentReport(doc, currentReportData, teacherNote, user);
+    
             doc.save(`Rapor_${studentInfo.name.replace(/\s/g, '_')}.pdf`);
-            toast.success("PDF berhasil diunduh!");
-        } catch (e) {
-            console.error(e);
-            toast.error("Gagal membuat PDF.");
+            toast.success("Rapor PDF berhasil dibuat!");
+        } catch (error: any) {
+            toast.error(`Gagal membuat PDF: ${error.message}`);
+            console.error(error);
         } finally {
             setIsExporting(false);
         }
     };
 
 
-    if (isLoading) { return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>; }
-    if (isError) { return <div className="flex items-center justify-center h-screen bg-gray-100">Error: {(error as Error).message}</div>; }
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-screen"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    }
+
+    if (isError) {
+        return <div className="flex items-center justify-center h-screen">Error: {error.message}</div>;
+    }
+
+    if (!data) {
+        return <div className="flex items-center justify-center h-screen">Tidak ada data untuk ditampilkan.</div>;
+    }
 
     return (
-        <div className="bg-gray-200 dark:bg-gray-800 min-h-screen p-4 sm:p-8 font-sans">
-            <div className="print:hidden max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-                <Button variant="outline" onClick={() => navigate(-1)} className="w-full sm:w-auto"><ArrowLeftIcon className="w-4 h-4 mr-2" />Kembali</Button>
-                <Button onClick={generatePdf} disabled={isExporting} className="w-full sm:w-auto">{isExporting ? 'Membuat PDF...' : <><PrinterIcon className="w-4 h-4 mr-2" /> Cetak / Simpan PDF</>}</Button>
-            </div>
-
-            <div id="report-card" className="bg-white text-black dark:text-black shadow-2xl max-w-4xl mx-auto font-serif p-10 sm:p-12 md:p-16">
-                <header className="text-center mb-8">
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-wider">{reportHeader.title}</h1>
-                    <h2 className="text-xl sm:text-2xl font-semibold">{reportHeader.schoolName}</h2>
-                    <p className="text-sm mt-1">{reportHeader.academicYear}</p>
-                    <div className="mt-4 border-b-4 border-black"></div>
-                </header>
-                
-                <section className="text-sm mb-8">
-                    <table className="w-full">
-                        <tbody>
-                            <tr>
-                                <td className="font-bold py-1 pr-2">Nama Siswa</td>
-                                <td className="py-1 pr-8">: {studentInfo.name}</td>
-                                <td className="font-bold py-1 pr-2">Kelas</td>
-                                <td className="py-1">: {studentInfo.className}</td>
-                            </tr>
-                            <tr>
-                                <td className="font-bold py-1 pr-2">No. Induk / NISN</td>
-                                <td className="py-1 pr-8">: {studentInfo.nisn}</td>
-                                <td className="font-bold py-1 pr-2">Fase</td>
-                                <td className="py-1">: {studentInfo.phase}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </section>
-                
-                <section className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-bold text-base">A. Nilai Akademik (Sumatif)</h3>
-                        <div className="flex gap-2 print:hidden">
-                            <Button size="sm" onClick={handleGenerateAllSubjectNotes} disabled={isGeneratingNote}>
-                                <BrainCircuitIcon className="w-4 h-4 mr-2" />
-                                Buat Semua Deskripsi
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={handleAddAcademicRecordRow}>
-                                <PlusIcon className="w-4 h-4 mr-2" />
-                                Tambah Baris
-                            </Button>
-                        </div>
-                    </div>
-                    <table className="w-full text-sm border-collapse border border-black">
-                        <thead className="bg-gray-100 font-bold text-center">
-                            <tr className="border border-black">
-                                <td className="border border-black p-2 w-[5%]">No</td>
-                                <td className="border border-black p-2">Mata Pelajaran</td>
-                                <td className="border border-black p-2 w-[10%]">Nilai</td>
-                                <td className="border border-black p-2 w-[10%]">Predikat</td>
-                                <td className="border border-black p-2">Deskripsi</td>
-                                <td className="border border-black p-2 w-[10%] print:hidden">Aksi</td>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {editableAcademicRecords.map((record, index) => (
-                                <tr key={record.id || index} className="border border-black">
-                                    <td className="border border-black p-2 text-center">{index + 1}</td>
-                                    <td className="border border-black p-0">
-                                        <EditableCell value={record.subject} onChange={(val) => handleListChange(setEditableAcademicRecords, index, 'subject', val)} />
-                                    </td>
-                                    <td className="border border-black p-0">
-                                        <EditableCell value={record.score} type="number" onChange={(val) => handleListChange(setEditableAcademicRecords, index, 'score', val)} className="text-center" />
-                                    </td>
-                                    <td className="border border-black p-2 text-center">{record.predikat}</td>
-                                    <td className="border border-black p-0 relative group">
-                                         <textarea 
-                                            value={record.deskripsi}
-                                            onChange={(e) => handleListChange(setEditableAcademicRecords, index, 'deskripsi', e.target.value)}
-                                            className="w-full p-2 bg-transparent focus:bg-yellow-100 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm text-justify !h-full !min-h-[60px]"
-                                            rows={3}
-                                        />
-                                        <Button 
-                                            size="icon" 
-                                            variant="ghost" 
-                                            onClick={() => handleGenerateSubjectNote(index)} 
-                                            disabled={generatingSubjectNote === index}
-                                            className="absolute bottom-1 right-1 print:hidden w-7 h-7 text-purple-600 bg-white/50 hover:bg-purple-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            {generatingSubjectNote === index ? (
-                                                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                                            ) : (
-                                                <SparklesIcon className="w-4 h-4" />
-                                            )}
-                                        </Button>
-                                    </td>
-                                    <td className="border border-black p-1 text-center print:hidden">
-                                        <Button size="icon" variant="ghost" onClick={() => handleRemoveAcademicRecordRow(index)} className="w-8 h-8 text-red-500">
-                                            <TrashIcon className="w-4 h-4" />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </section>
-
-                <section className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-bold text-base">B. Poin Keaktifan & Ekstrakurikuler</h3>
-                        <Button size="sm" variant="outline" onClick={handleAddQuizPointRow} className="print:hidden">
-                            <PlusIcon className="w-4 h-4 mr-2" />
-                            Tambah Baris
+        <div className="bg-gray-100 dark:bg-gray-800 min-h-screen text-black dark:text-gray-200">
+            {/* Toolbar */}
+            <header className="sticky top-0 z-20 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-sm p-4 print:hidden">
+                <div className="max-w-4xl mx-auto flex justify-between items-center">
+                    <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeftIcon className="w-4 h-4 mr-2" />Kembali</Button>
+                    <div className="flex items-center gap-2">
+                         <Button onClick={() => handleGenerateAiNote()} disabled={isGeneratingNote || !data}>
+                            <BrainCircuitIcon className="w-4 h-4 mr-2" />
+                            {isGeneratingNote ? "Membuat..." : "Buat Catatan AI"}
+                        </Button>
+                        <Button onClick={handleExportPdf} disabled={isExporting}>
+                            <PrinterIcon className="w-4 h-4 mr-2" />
+                            {isExporting ? "Mengekspor..." : "Cetak/PDF"}
                         </Button>
                     </div>
-                    <table className="w-full text-sm border-collapse border border-black">
-                        <thead className="bg-gray-100 font-bold text-center">
-                            <tr className="border border-black">
-                                <td className="border border-black p-2 w-[5%]">No</td>
-                                <td className="border border-black p-2 w-[20%]">Tanggal</td>
-                                <td className="border border-black p-2 w-[25%]">Mata Pelajaran</td>
-                                <td className="border border-black p-2">Aktivitas / Kegiatan</td>
-                                <td className="border border-black p-2 w-[10%] print:hidden">Aksi</td>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {editableQuizPoints.length > 0 ? (
-                                editableQuizPoints.map((record, index) => (
-                                    <tr key={record.id} className="border border-black">
-                                        <td className="border border-black p-2 text-center">{index + 1}</td>
-                                        <td className="border border-black p-0">
-                                            <EditableCell 
-                                                value={record.quiz_date} 
-                                                type="text"
-                                                onChange={(val) => handleListChange(setEditableQuizPoints, index, 'quiz_date', val)} 
-                                            />
-                                        </td>
-                                        <td className="border border-black p-0">
-                                            <EditableCell 
-                                                value={record.subject} 
-                                                onChange={(val) => handleListChange(setEditableQuizPoints, index, 'subject', val)} 
-                                            />
-                                        </td>
-                                        <td className="border border-black p-0">
-                                            <EditableCell 
-                                                value={record.quiz_name} 
-                                                onChange={(val) => handleListChange(setEditableQuizPoints, index, 'quiz_name', val)} 
-                                            />
-                                        </td>
-                                        <td className="border border-black p-1 text-center print:hidden">
-                                            <Button size="icon" variant="ghost" onClick={() => handleRemoveQuizPointRow(index)} className="w-8 h-8 text-red-500">
-                                                <TrashIcon className="w-4 h-4" />
-                                            </Button>
-                                        </td>
+                </div>
+            </header>
+
+            {/* Main Report Content */}
+            <main className="p-4 md:p-8">
+                <div id="report-content" className="max-w-4xl mx-auto bg-white dark:bg-gray-950 p-8 shadow-2xl rounded-lg">
+                    {/* Header */}
+                    <header className="text-center mb-8 border-b-2 border-black dark:border-gray-600 pb-4">
+                        <EditableCell value={reportHeader.title} onChange={val => setReportHeader(p => ({ ...p, title: String(val) }))} className="text-xl font-bold text-center !p-1" />
+                        <EditableCell value={reportHeader.schoolName} onChange={val => setReportHeader(p => ({ ...p, schoolName: String(val) }))} className="text-sm text-center !p-1" />
+                        <EditableCell value={reportHeader.academicYear} onChange={val => setReportHeader(p => ({ ...p, academicYear: String(val) }))} className="text-sm text-center !p-1" />
+                    </header>
+
+                    {/* Student Info */}
+                    <section className="grid grid-cols-2 gap-x-8 gap-y-2 mb-8 text-sm">
+                        <div className="flex"><strong className="w-24">Nama Siswa</strong>: <EditableCell value={studentInfo.name} onChange={val => setStudentInfo(p => ({ ...p, name: String(val) }))} /></div>
+                        <div className="flex"><strong className="w-24">Kelas</strong>: <EditableCell value={studentInfo.className} onChange={val => setStudentInfo(p => ({ ...p, className: String(val) }))} /></div>
+                    </section>
+
+                    {/* Academic Records */}
+                    <section className="mb-8">
+                        <h2 className="text-lg font-bold mb-2">A. Hasil Belajar Akademik</h2>
+                        <table className="w-full border-collapse border border-gray-400 dark:border-gray-600">
+                           <thead><tr className="bg-gray-200 dark:bg-gray-800 font-bold"><td className="border p-2">No</td><td className="border p-2">Mata Pelajaran</td><td className="border p-2">Nilai Akhir</td><td className="border p-2">Predikat</td><td className="border p-2 w-[40%]">Deskripsi</td><td className="w-10 print:hidden"></td></tr></thead>
+                            <tbody>
+                                {editableAcademicRecords.map((record, index) => (
+                                    <tr key={record.id}><td className="border p-2 text-center">{index + 1}</td>
+                                    <td className="border"><EditableCell value={record.subject} onChange={val => handleListChange(setEditableAcademicRecords, index, 'subject', val)} /></td>
+                                    <td className="border"><EditableCell type="number" value={record.score} onChange={val => handleListChange(setEditableAcademicRecords, index, 'score', val)} /></td>
+                                    <td className="border p-2 text-center">{record.predikat}</td>
+                                    <td className="border relative group">
+                                        <EditableCell type="textarea" value={record.deskripsi} onChange={val => handleListChange(setEditableAcademicRecords, index, 'deskripsi', val)} rows={3}/>
+                                        <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7 print:hidden opacity-0 group-hover:opacity-100" onClick={() => handleGenerateSubjectNote(index, record.subject, record.score)} disabled={generatingSubjectNote === index}>{generatingSubjectNote === index ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div> : <SparklesIcon className="w-4 h-4 text-purple-500"/>}</Button>
+                                    </td>
+                                    <td className="border p-1 text-center print:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleRemoveAcademicRecordRow(index)}><TrashIcon className="w-4 h-4"/></Button></td>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr className="border border-black">
-                                    <td colSpan={5} className="p-4 text-center text-gray-500">
-                                        Belum ada poin keaktifan yang dicatat.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </section>
-                
-                <section className="mt-6">
-                    <h3 className="font-bold text-base mb-3">C. Kepribadian dan Sikap</h3>
-                    <h4 className="font-semibold text-sm mb-2">1. Ketidakhadiran</h4>
-                     <div className="grid grid-cols-3 gap-4 text-sm pl-4">
-                        {Object.entries(editableAttendanceSummary).map(([status, count]) => (
-                            <div key={status} className="border border-black p-2 text-center">
-                                <p className="font-bold">{status}</p>
-                                <p>{count} hari</p>
-                            </div>
-                        ))}
-                    </div>
-
-                    <h4 className="font-semibold text-sm mb-2 mt-4">2. Catatan Perilaku</h4>
-                    <p className="text-sm pl-4 text-justify">{behavioralNote}</p>
-                    {editableViolations.length > 0 && (
-                        <div className="pl-4 mt-2">
-                            <h5 className="font-semibold text-sm mb-1 italic">Rincian Pelanggaran</h5>
-                            <table className="w-full text-sm border-collapse border border-black">
-                                <thead className="bg-gray-100 font-bold text-center"><tr className="border border-black"><td className="border border-black p-2 w-[5%]">No</td><td className="border border-black p-2 w-[20%]">Tanggal</td><td className="border border-black p-2">Deskripsi</td><td className="border border-black p-2 w-[10%]">Poin</td></tr></thead>
-                                <tbody>{editableViolations.map((v, i) => (<tr key={i} className="border border-black"><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 text-center">{v.date}</td><td className="border border-black p-2">{v.description}</td><td className="border border-black p-2 text-center">{v.points}</td></tr>))}</tbody>
+                                ))}
+                            </tbody>
+                        </table>
+                        <Button size="sm" variant="outline" onClick={handleAddAcademicRecordRow} className="mt-2 print:hidden"><PlusIcon className="w-4 h-4 mr-2"/>Tambah Baris</Button>
+                    </section>
+                    
+                    <div className="grid grid-cols-2 gap-8 mb-8">
+                         <section>
+                            <h2 className="text-lg font-bold mb-2">B. Ketidakhadiran</h2>
+                            <table className="w-full text-sm">
+                                <tbody>
+                                    <tr><td className="py-1">Sakit</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Sakit} onChange={val => setEditableAttendanceSummary(p => ({...p, Sakit: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
+                                    <tr><td className="py-1">Izin</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Izin} onChange={val => setEditableAttendanceSummary(p => ({...p, Izin: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
+                                    <tr><td className="py-1">Tanpa Keterangan</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Alpha} onChange={val => setEditableAttendanceSummary(p => ({...p, Alpha: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
+                                </tbody>
                             </table>
-                        </div>
-                    )}
-                </section>
-                
-                <section className="mt-6">
-                    <div className="flex justify-between items-center mb-2 print:hidden">
-                        <h3 className="font-bold text-base">D. Catatan Wali Kelas</h3>
-                        <Button onClick={() => handleGenerateAiNote(true)} disabled={isGeneratingNote}>
-                            {isGeneratingNote ? 'Membuat...' : <><BrainCircuitIcon className="w-4 h-4 mr-2" /> Buat dengan AI</>}
-                        </Button>
+                        </section>
+                        <section>
+                            <h2 className="text-lg font-bold mb-2">C. Catatan Perilaku</h2>
+                            <EditableCell type="textarea" value={behavioralNote} onChange={(val) => setBehavioralNote(String(val))} rows={4}/>
+                        </section>
                     </div>
-                    <h3 className="font-bold text-base mb-2 hidden print:block">D. Catatan Wali Kelas</h3>
-                    <div className="border border-black p-3 text-sm min-h-[80px]">
-                        <textarea value={teacherNote} onChange={(e) => setTeacherNote(e.target.value)} className="w-full h-full bg-transparent focus:bg-yellow-100 p-1 rounded-sm font-serif text-justify"/>
-                    </div>
-                </section>
 
-            </div>
+                    <section className="mb-8">
+                        <h2 className="text-lg font-bold mb-2">D. Catatan Wali Kelas</h2>
+                        <EditableCell type="textarea" value={teacherNote} onChange={(val) => setTeacherNote(String(val))} rows={5}/>
+                    </section>
+                    
+                     <footer className="pt-16 flex justify-end">
+                        <div className="text-center text-sm">
+                            <p>Madiun, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                            <p>Wali Kelas,</p>
+                            <div className="h-20"></div>
+                            <p className="font-bold underline">{user?.name || '___________________'}</p>
+                        </div>
+                    </footer>
+                </div>
+            </main>
         </div>
     );
 };

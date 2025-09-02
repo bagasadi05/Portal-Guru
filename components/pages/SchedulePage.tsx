@@ -1,7 +1,9 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { TrashIcon, PlusIcon, ClockIcon, PencilIcon, CalendarIcon, BookOpenIcon, GraduationCapIcon, BrainCircuitIcon, DownloadCloudIcon } from '../Icons';
+import { TrashIcon, PlusIcon, ClockIcon, PencilIcon, CalendarIcon, BookOpenIcon, GraduationCapIcon, BrainCircuitIcon, DownloadCloudIcon, BellIcon } from '../Icons';
 import { Modal } from '../ui/Modal';
 import { Type } from '@google/genai';
 import { supabase, ai } from '../../services/supabase';
@@ -12,9 +14,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOfflineStatus } from '../../hooks/useOfflineStatus';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import * as ics from 'ics';
 
 const daysOfWeek: Database['public']['Tables']['schedules']['Row']['day'][] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
 type ScheduleRow = Database['public']['Tables']['schedules']['Row'];
+type ScheduleWithClassName = ScheduleRow & { className?: string };
 type ScheduleMutationVars = 
     | { mode: 'add'; data: Database['public']['Tables']['schedules']['Insert'] }
     | { mode: 'edit'; data: Database['public']['Tables']['schedules']['Update']; id: string };
@@ -31,8 +35,30 @@ const FormInputWrapper: React.FC<{ children: React.ReactNode; label: string; ico
     </div>
 );
 
+const NotificationPrompt: React.FC<{
+    onEnable: () => Promise<void>;
+    isLoading: boolean;
+}> = ({ onEnable, isLoading }) => {
+    return (
+        <div className="relative z-10 bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 animate-fade-in">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <BellIcon className="w-6 h-6 text-purple-300"/>
+                </div>
+                <div>
+                    <h4 className="font-bold text-white">Jangan Lewatkan Jadwal</h4>
+                    <p className="text-sm text-gray-300">Aktifkan notifikasi untuk mendapatkan pengingat 5 menit sebelum kelas dimulai.</p>
+                </div>
+            </div>
+            <Button onClick={onEnable} disabled={isLoading} className="w-full sm:w-auto flex-shrink-0">
+                {isLoading ? 'Mengaktifkan...' : 'Aktifkan Notifikasi'}
+            </Button>
+        </div>
+    )
+};
+
 const SchedulePage: React.FC = () => {
-    const { user } = useAuth();
+    const { user, isNotificationsEnabled, enableScheduleNotifications } = useAuth();
     const toast = useToast();
     const queryClient = useQueryClient();
     const isOnline = useOfflineStatus();
@@ -43,6 +69,11 @@ const SchedulePage: React.FC = () => {
     const [isAnalysisModalOpen, setAnalysisModalOpen] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
     const [isAnalysisLoading, setAnalysisLoading] = useState(false);
+
+    const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+    const [draggedOverColumn, setDraggedOverColumn] = useState<ScheduleRow['day'] | null>(null);
+
+    const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
 
     const { data: schedule = [], isLoading: pageLoading, isError, error: queryError } = useQuery({
         queryKey: ['schedule', user?.id],
@@ -92,7 +123,10 @@ const SchedulePage: React.FC = () => {
         onError: (error: Error) => toast.error(error.message)
     });
 
-    const handleOpenAddModal = () => { setFormData({ day: 'Senin', start_time: '08:00', end_time: '09:30', subject: '', class_id: '' }); setModalState({ isOpen: true, mode: 'add', data: null }); };
+    const handleOpenAddModal = (day?: ScheduleRow['day']) => { 
+        setFormData({ day: day || 'Senin', start_time: '08:00', end_time: '09:30', subject: '', class_id: '' }); 
+        setModalState({ isOpen: true, mode: 'add', data: null }); 
+    };
     const handleOpenEditModal = (item: ScheduleRow) => { setFormData({ day: item.day, start_time: item.start_time, end_time: item.end_time, subject: item.subject, class_id: item.class_id }); setModalState({ isOpen: true, mode: 'edit', data: item }); };
     const handleCloseModal = () => { if (scheduleMutation.isPending) return; setModalState({ isOpen: false, mode: 'add', data: null }); };
     
@@ -231,10 +265,143 @@ const SchedulePage: React.FC = () => {
         doc.save('Jadwal_Mengajar.pdf');
         toast.success("Jadwal PDF berhasil diunduh!");
     };
+
+    const handleExportToIcs = () => {
+        if (!schedule || schedule.length === 0) {
+            toast.warning("Tidak ada jadwal untuk diekspor.");
+            return;
+        }
+
+        const dayToICalDay: Record<string, 'MO' | 'TU' | 'WE' | 'TH' | 'FR'> = {
+            'Senin': 'MO',
+            'Selasa': 'TU',
+            'Rabu': 'WE',
+            'Kamis': 'TH',
+            'Jumat': 'FR',
+        };
+        const dayNameToIndex: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
+
+        const events: ics.EventAttributes[] = schedule.map(item => {
+            const [startHour, startMinute] = item.start_time.split(':').map(Number);
+            const [endHour, endMinute] = item.end_time.split(':').map(Number);
+
+            const now = new Date();
+            const targetDayIndex = dayNameToIndex[item.day];
+            const currentDayIndex = now.getDay();
+            
+            let dayDifference = targetDayIndex - currentDayIndex;
+            if (dayDifference < 0 || (dayDifference === 0 && (now.getHours() > startHour || (now.getHours() === startHour && now.getMinutes() > startMinute)))) {
+                dayDifference += 7;
+            }
+
+            const eventDate = new Date();
+            eventDate.setDate(now.getDate() + dayDifference);
+
+            const year = eventDate.getFullYear();
+            const month = eventDate.getMonth() + 1;
+            const day = eventDate.getDate();
+
+            const recurrenceRule = `FREQ=WEEKLY;BYDAY=${dayToICalDay[item.day]}`;
+            
+            return {
+                uid: `guru-pwa-${item.id}@myapp.com`,
+                title: `${item.subject} (Kelas ${item.class_id})`,
+                start: [year, month, day, startHour, startMinute],
+                end: [year, month, day, endHour, endMinute],
+                rrule: recurrenceRule,
+                description: `Jadwal mengajar untuk kelas ${item.class_id}`,
+                location: 'Sekolah',
+                startOutputType: 'local',
+                endOutputType: 'local',
+            };
+        });
+
+        ics.createEvents(events, (error, value) => {
+            if (error) {
+                toast.error("Gagal membuat file kalender.");
+                console.error(error);
+                return;
+            }
+            const blob = new Blob([value], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'jadwal_mengajar.ics';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("File kalender (.ics) berhasil diunduh!");
+        });
+    };
     
+    // Drag and Drop Handlers
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: ScheduleRow) => {
+        if (!isOnline) return;
+        setDraggedItemId(item.id);
+        e.dataTransfer.setData('text/plain', item.id);
+        e.currentTarget.classList.add('opacity-50', 'rotate-3', 'scale-105');
+    };
+
+    const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+        e.currentTarget.classList.remove('opacity-50', 'rotate-3', 'scale-105');
+        setDraggedItemId(null);
+        setDraggedOverColumn(null);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>, day: ScheduleRow['day']) => {
+        e.preventDefault();
+        if (day !== draggedOverColumn) {
+            setDraggedOverColumn(day);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDay: ScheduleRow['day']) => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData('text/plain');
+        if (!id) return;
+
+        const currentItem = schedule.find(item => item.id === id);
+        if (currentItem && currentItem.day !== newDay) {
+            scheduleMutation.mutate({ mode: 'edit', data: { day: newDay }, id });
+        }
+        setDraggedItemId(null);
+        setDraggedOverColumn(null);
+    };
+
+    const handleEnableNotifications = async () => {
+        setIsEnablingNotifications(true);
+        if (!schedule || schedule.length === 0) {
+            toast.warning("Tidak ada data jadwal untuk notifikasi.");
+            setIsEnablingNotifications(false);
+            return;
+        }
+
+        const { data: classes, error } = await supabase.from('classes').select('id, name').eq('user_id', user!.id);
+        if (error) {
+            toast.error("Gagal mengambil data kelas untuk notifikasi.");
+            setIsEnablingNotifications(false);
+            return;
+        }
+
+        const classMap = new Map<string, string>((classes || []).map(c => [c.id, c.name]));
+        const scheduleWithClassNames: ScheduleWithClassName[] = schedule.map(item => ({
+            ...item,
+            className: classMap.get(item.class_id) || item.class_id
+        }));
+
+        const success = await enableScheduleNotifications(scheduleWithClassNames);
+        if (success) {
+            toast.success("Notifikasi jadwal berhasil diaktifkan!");
+        }
+        setIsEnablingNotifications(false);
+    };
+
     if (pageLoading) return <div className="flex items-center justify-center h-full bg-gray-950"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
     const inputStyles = "pl-10 bg-white/10 border-white/20 placeholder:text-gray-400 text-white focus:bg-white/20 focus:border-purple-400";
+    const todayName = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
+    const dayIndexMap = { 'Senin': 0, 'Selasa': 1, 'Rabu': 2, 'Kamis': 3, 'Jumat': 4 };
+    const todayIndex = dayIndexMap[todayName as keyof typeof dayIndexMap] ?? -1;
+
 
     return (
         <div className="w-full min-h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col">
@@ -250,28 +417,56 @@ const SchedulePage: React.FC = () => {
             <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Jadwal Mingguan</h1>
-                    <p className="mt-1 text-indigo-200">Atur jadwal mengajar Anda di papan interaktif ini.</p>
+                    <p className="mt-1 text-indigo-200">Atur jadwal mengajar Anda dengan menyeret kartu jadwal.</p>
                 </div>
                 <div className="flex gap-2 self-end md:self-center">
                     <Button onClick={handleExportPdf} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20" disabled={!isOnline || schedule.length === 0} title={!isOnline ? "Fitur ini memerlukan koneksi internet" : (schedule.length === 0 ? "Tidak ada jadwal untuk diekspor" : "Ekspor Jadwal ke PDF")}>
                         <DownloadCloudIcon className="w-5 h-5 mr-2" />
                         Export PDF
                     </Button>
+                    <Button onClick={handleExportToIcs} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20" disabled={!isOnline || schedule.length === 0} title={!isOnline ? "Fitur ini memerlukan koneksi internet" : (schedule.length === 0 ? "Tidak ada jadwal untuk diekspor" : "Ekspor Jadwal ke ICS")}>
+                        <DownloadCloudIcon className="w-5 h-5 mr-2" />
+                        Ekspor ICS
+                    </Button>
                     <Button onClick={handleAnalyzeSchedule} variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20" disabled={!isOnline}><BrainCircuitIcon className="w-5 h-5 mr-2 text-purple-500"/>Analisis AI</Button>
-                    <Button onClick={handleOpenAddModal} disabled={!isOnline} className="bg-white/10 border-white/20 hover:bg-white/20 text-white transition-all duration-300 hover:-translate-y-0.5"><PlusIcon className="w-5 h-5 mr-2" />Tambah</Button>
+                    <Button onClick={() => handleOpenAddModal()} disabled={!isOnline} className="bg-white/10 border-white/20 hover:bg-white/20 text-white transition-all duration-300 hover:-translate-y-0.5"><PlusIcon className="w-5 h-5 mr-2" />Tambah</Button>
                 </div>
             </header>
             
+            {isOnline && !isNotificationsEnabled && schedule.length > 0 && (
+                <NotificationPrompt
+                    onEnable={handleEnableNotifications}
+                    isLoading={isEnablingNotifications}
+                />
+            )}
+            
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 flex-grow overflow-y-auto -mx-2 px-2">
-                {daysOfWeek.map((day) => { 
+                {daysOfWeek.map((day, index) => { 
                     const itemsForDay = schedule.filter(item => item.day === day).sort((a, b) => a.start_time.localeCompare(b.start_time)); 
+                    const isToday = day === todayName;
+                    const isPast = todayIndex > -1 && index < todayIndex;
                     return (
-                         <div key={day} className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-4 flex flex-col min-h-[200px]">
+                         <div 
+                            key={day} 
+                            className={`flex flex-col min-h-[200px] p-4 bg-white/5 backdrop-blur-lg rounded-2xl border transition-all duration-300
+                                ${isToday ? 'border-purple-500 animate-pulse-border-glow' : 'border-white/10'}
+                                ${isPast ? 'opacity-60' : ''}
+                                ${draggedOverColumn === day ? 'bg-white/10 scale-105' : ''}
+                            `}
+                            onDragOver={(e) => handleDragOver(e, day)}
+                            onDrop={(e) => handleDrop(e, day)}
+                         >
                             <div className="font-bold text-lg pb-3 mb-4 border-b-2 border-purple-500/50 flex justify-between items-center text-white">{day}</div>
                             <div className="space-y-4 flex-grow overflow-y-auto pr-2 -mr-2">
                                 {itemsForDay.length > 0 ? (
                                     itemsForDay.map(item => (
-                                        <div key={item.id} className="relative group bg-black/20 backdrop-blur-sm border border-white/20 p-3.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-purple-400">
+                                        <div 
+                                            key={item.id} 
+                                            draggable={isOnline}
+                                            onDragStart={(e) => handleDragStart(e, item)}
+                                            onDragEnd={handleDragEnd}
+                                            className="relative group bg-black/20 backdrop-blur-sm border border-white/20 p-3.5 rounded-xl cursor-grab active:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-purple-400"
+                                        >
                                             <div className="absolute top-2 right-2 flex space-x-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => handleOpenEditModal(item)} className="p-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" aria-label="Edit jadwal" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></button>
                                                 <button onClick={() => handleDeleteSchedule(item.id)} className="p-1.5 rounded-full text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white transition-colors" aria-label="Hapus jadwal" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></button>
@@ -282,10 +477,20 @@ const SchedulePage: React.FC = () => {
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="flex items-center justify-center h-full text-center text-gray-400 border-2 border-dashed border-white/10 rounded-lg">
-                                        <p className="text-sm">Tidak ada jadwal</p>
-                                    </div>
+                                    draggedOverColumn !== day && (
+                                        <div className="flex items-center justify-center h-full text-center text-gray-400 border-2 border-dashed border-white/10 rounded-lg">
+                                            <p className="text-sm">Tidak ada jadwal</p>
+                                        </div>
+                                    )
                                 )}
+                                 {draggedOverColumn === day && (
+                                    <div className="h-24 rounded-lg border-2 border-dashed border-purple-500 bg-purple-500/10 animate-pulse"></div>
+                                )}
+                            </div>
+                            <div className="pt-4 mt-auto">
+                                <Button onClick={() => handleOpenAddModal(day)} disabled={!isOnline} variant="ghost" className="w-full bg-white/5 hover:bg-white/10 text-gray-300">
+                                    <PlusIcon className="w-4 h-4 mr-2"/> Tambah Jadwal
+                                </Button>
                             </div>
                         </div>
                     );

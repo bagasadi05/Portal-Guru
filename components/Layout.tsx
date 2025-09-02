@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom';
+// FIX: Use named imports for react-router-dom hooks and components
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { HomeIcon, UsersIcon, CalendarIcon, ClipboardIcon, LogoutIcon, SettingsIcon, GraduationCapIcon, SearchIcon, CheckSquareIcon, BrainCircuitIcon, ClipboardPenIcon, DownloadCloudIcon } from './Icons';
 import ThemeToggle from './ui/ThemeToggle';
@@ -24,6 +25,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
+    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
@@ -36,20 +38,20 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
     };
 
     return (
-        <aside className="w-64 flex-shrink-0 bg-gradient-to-b from-indigo-700 via-purple-800 to-slate-900 flex flex-col p-4 text-white">
+        <aside className="w-64 flex-shrink-0 bg-gradient-to-b from-sky-700 via-sky-800 to-slate-900 dark:from-indigo-700 dark:via-purple-800 dark:to-slate-900 flex flex-col p-4 text-white">
             <div className="flex items-center gap-3 px-2 mb-8">
                 <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <GraduationCapIcon className="w-6 h-6 text-purple-300" />
+                    <GraduationCapIcon className="w-6 h-6 text-sky-300 dark:text-purple-300" />
                 </div>
                 <div>
                     <h1 className="text-xl font-bold tracking-wider text-white">Guru Cerdas</h1>
-                    <p className="text-xs text-purple-300 -mt-1">Asisten Digital Anda</p>
+                    <p className="text-xs text-sky-200 dark:text-purple-300 -mt-1">Asisten Digital Anda</p>
                 </div>
             </div>
 
             <div className="flex items-center gap-4 mb-8 p-3 rounded-xl bg-black/20 border border-white/10">
                 <img
-                    className="h-11 w-11 rounded-full object-cover border-2 border-purple-400"
+                    className="h-11 w-11 rounded-full object-cover border-2 border-sky-400 dark:border-purple-400"
                     src={user?.avatarUrl}
                     alt="User avatar"
                 />
@@ -61,6 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
 
             <nav className="flex-1 space-y-2">
                 {navItems.map((item) => (
+                    // FIX: Use NavLink component directly
                     <NavLink
                         key={item.href}
                         to={item.href}
@@ -68,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
                         onClick={onLinkClick}
                         className={({ isActive }) =>
                           `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 transform hover:bg-white/10 hover:translate-x-1 text-gray-300 hover:text-white group ${
-                            isActive ? 'bg-gradient-to-r from-purple-600 to-blue-500 shadow-lg text-white font-semibold' : ''
+                            isActive ? 'bg-gradient-to-r from-sky-500 to-blue-500 dark:from-purple-600 dark:to-blue-500 shadow-lg text-white font-semibold' : ''
                           }`
                         }
                     >
@@ -93,6 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
 
 const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> = ({ onMenuClick, onSearchClick }) => {
     const { user, logout } = useAuth();
+    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -155,7 +159,7 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
                 </Button>
                 <ThemeToggle />
                 <div className="relative" ref={profileMenuRef}>
-                    <button onClick={() => setProfileMenuOpen(prev => !prev)} className="flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 rounded-full">
+                    <button onClick={() => setProfileMenuOpen(prev => !prev)} className="flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 dark:focus:ring-purple-500 rounded-full">
                          <img
                             className="h-9 w-9 rounded-full object-cover"
                             src={user?.avatarUrl}
@@ -170,6 +174,7 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                                 </div>
                                 <div className="py-1 mt-1">
+                                    {/* FIX: Use Link component directly */}
                                     <Link to="/pengaturan" onClick={() => setProfileMenuOpen(false)} className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50">
                                         <SettingsIcon className="w-4 h-4 mr-3" />
                                         <span>Pengaturan</span>
@@ -194,9 +199,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-    const location = useLocation();
-    const isFullScreenPage = ['/input-massal', '/tugas', '/jadwal', '/siswa', '/absensi', '/dashboard'].includes(location.pathname);
-
+    
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -209,7 +212,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }, []);
   
     return (
-        <div className="flex h-screen bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+        <div className="flex h-screen bg-gray-50 dark:bg-transparent text-gray-900 dark:text-gray-100">
             {/* Desktop Sidebar */}
             <div className="hidden md:flex">
                 <Sidebar />
@@ -225,22 +228,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" onClick={() => setSidebarOpen(false)}></div>}
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                {!isFullScreenPage && <Header onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)} />}
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent">
-                    {isFullScreenPage ? (
-                        children
-                    ) : (
-                        <div className="container mx-auto px-4 sm:px-6 py-8">
-                            {children}
-                        </div>
-                    )}
+                <Header onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)} />
+                <main className="flex-1 overflow-x-hidden overflow-y-auto">
+                    {children}
                 </main>
             </div>
+
             <GlobalSearch isOpen={searchOpen} setIsOpen={setSearchOpen} />
+
             <div className="fixed bottom-6 right-6 z-30">
                 <Button
                     size="icon"
-                    className="h-14 w-14 rounded-full bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-xl hover:shadow-2xl hover:shadow-purple-500/40 transform hover:-translate-y-1 transition-all"
+                    className="h-14 w-14 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 dark:from-purple-600 dark:to-blue-500 text-white shadow-xl hover:shadow-2xl hover:shadow-sky-500/40 dark:hover:shadow-purple-500/40 transform hover:-translate-y-1 transition-all"
                     onClick={() => setIsAiAssistantOpen(true)}
                     aria-label="Buka Asisten AI"
                 >

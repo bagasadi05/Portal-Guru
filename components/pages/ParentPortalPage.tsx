@@ -1,39 +1,79 @@
+
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
 import { useToast } from '../../hooks/useToast';
 import { Database } from '../../services/database.types';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, ChevronLeftIcon, ChevronRightIcon, MessageSquareIcon, SendIcon, UsersIcon } from '../Icons';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
+import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon } from '../Icons';
 import { Input } from '../ui/Input';
 
-type PortalData = Database['public']['Functions']['get_student_portal_data']['Returns'] & {
-    communications: CommunicationData[],
-    teacher: { name: string, avatar_url: string, user_id: string } | null
-};
-type AcademicRecord = PortalData['academicRecords'][0];
-type Violation = PortalData['violations'][0];
-type Report = PortalData['reports'][0];
-type QuizPoint = PortalData['quizPoints'][0];
-type CommunicationData = Database['public']['Tables']['communications']['Row'];
+// FIX: Define local types based on the RPC function's return schema to resolve type mismatches.
+type PortalRpcResult = Database['public']['Functions']['get_student_portal_data']['Returns'][number];
+type PortalStudentInfo = PortalRpcResult['student'];
+type PortalReport = PortalRpcResult['reports'][number];
+type PortalAttendance = PortalRpcResult['attendanceRecords'][number];
+type PortalAcademicRecord = PortalRpcResult['academicRecords'][number];
+type PortalViolation = PortalRpcResult['violations'][number];
+type PortalQuizPoint = PortalRpcResult['quizPoints'][number];
+type PortalCommunication = PortalRpcResult['communications'][number];
+type TeacherInfo = PortalRpcResult['teacher'];
 
-type TimelineItem =
-  | (Report & { type: 'report'; date: string })
-  | (Violation & { type: 'violation'; date: string })
-  | (QuizPoint & { type: 'quiz'; date: string });
+// FIX: Update PortalData to use the new, accurate RPC-based types.
+type PortalData = {
+    student: PortalStudentInfo & { classes: { name: string }, access_code: string | null },
+    reports: PortalReport[],
+    attendanceRecords: PortalAttendance[],
+    academicRecords: PortalAcademicRecord[],
+    violations: PortalViolation[],
+    quizPoints: PortalQuizPoint[],
+    communications: PortalCommunication[],
+    teacher: TeacherInfo,
+};
+
+
+const fetchPortalData = async (studentId: string, accessCode: string): Promise<PortalData> => {
+    const { data, error } = await supabase.rpc('get_student_portal_data', {
+        student_id_param: studentId,
+        access_code_param: accessCode,
+    });
+
+    if (error) {
+        console.error("Portal access RPC failed:", error);
+        throw error;
+    }
+
+    if (!data || data.length === 0) {
+        throw new Error("Kode akses tidak valid atau data siswa tidak ditemukan.");
+    }
+
+    const portalResult = data[0];
+    
+    // FIX: Assemble the data structure, which now aligns with the `PortalData` type without causing errors.
+    return {
+        student: { ...portalResult.student, access_code: accessCode },
+        reports: portalResult.reports || [],
+        attendanceRecords: portalResult.attendanceRecords || [],
+        academicRecords: portalResult.academicRecords || [],
+        violations: portalResult.violations || [],
+        quizPoints: portalResult.quizPoints || [],
+        communications: portalResult.communications || [],
+        teacher: portalResult.teacher,
+    };
+};
+
 
 const GlassCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-    <Card
-      className={`bg-white/5 backdrop-blur-lg border border-white/10 ${className}`}
+    <div
+      className={`bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg shadow-black/20 ${className}`}
       {...props}
     />
 );
 
 const SummaryCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, colorClass: string }> = ({ icon: Icon, label, value, colorClass }) => (
-    <GlassCard className="p-4">
+    <GlassCard className="p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-purple-400/50">
         <div className="flex items-center gap-4">
             <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-white ${colorClass}`}>
                  <Icon className="w-6 h-6" />
@@ -46,215 +86,102 @@ const SummaryCard: React.FC<{ icon: React.ElementType, label: string, value: str
     </GlassCard>
 );
 
-const AttendanceCalendar: React.FC<{ records: PortalData['attendanceRecords'] }> = ({ records }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const recordsMap = useMemo(() => new Map(records.map(r => [r.date, r])), [records]);
-
-    const changeMonth = (amount: number) => {
-        setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setMonth(newDate.getMonth() + amount);
-            return newDate;
-        });
-    };
-
-    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const startDate = new Date(monthStart);
-    startDate.setDate(startDate.getDate() - monthStart.getDay());
-    const endDate = new Date(monthEnd);
-    endDate.setDate(endDate.getDate() + (6 - monthEnd.getDay()));
-
-    const days = [];
-    let day = new Date(startDate);
-    while (day <= endDate) {
-        days.push(new Date(day));
-        day.setDate(day.getDate() + 1);
-    }
-    
-    const statusStyles: Record<string, string> = {
-        Hadir: 'bg-green-500/80 border-green-400',
-        Sakit: 'bg-blue-500/80 border-blue-400',
-        Izin: 'bg-yellow-500/80 border-yellow-400',
-        Alpha: 'bg-red-500/80 border-red-400',
-    };
-
-    return (
-        <GlassCard className="h-full">
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-yellow-400"/>Kalender Kehadiran</CardTitle>
-                    <div className="flex items-center gap-2">
-                        <span className="font-semibold text-lg">{currentDate.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => changeMonth(-1)}><ChevronLeftIcon className="w-5 h-5"/></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-white/70 hover:bg-white/10" onClick={() => changeMonth(1)}><ChevronRightIcon className="w-5 h-5"/></Button>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-300 mb-2">
-                    {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map(d => <div key={d}>{d}</div>)}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                    {days.map((d, i) => {
-                        const dateString = d.toISOString().split('T')[0];
-                        const record = recordsMap.get(dateString);
-                        const isCurrentMonth = d.getMonth() === currentDate.getMonth();
-                        return (
-                            <div key={i} className="relative group aspect-square">
-                                <div className={`w-full h-full rounded-md flex items-center justify-center border-2 transition-colors ${record ? statusStyles[record.status] : 'border-transparent'} ${isCurrentMonth ? 'bg-black/20' : 'bg-black/10'}`}>
-                                    <span className={isCurrentMonth ? 'text-white' : 'text-gray-500'}>{d.getDate()}</span>
-                                </div>
-                                {record && (
-                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max p-2 bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                        <p className="font-bold">{record.status}</p>
-                                        {record.notes && <p className="italic">"{record.notes}"</p>}
-                                        <div className="absolute w-2 h-2 bg-gray-900 transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2"></div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </CardContent>
-        </GlassCard>
-    );
+const getScoreColorClasses = (score: number) => {
+    if (score >= 85) return { bg: 'bg-green-900/30', border: 'border-green-600', scoreBg: 'bg-green-500' };
+    if (score >= 70) return { bg: 'bg-yellow-900/30', border: 'border-yellow-600', scoreBg: 'bg-yellow-500' };
+    return { bg: 'bg-red-900/30', border: 'border-red-600', scoreBg: 'bg-red-500' };
 };
 
-const GradeTrendChart: React.FC<{ records: AcademicRecord[] }> = ({ records }) => {
-    const [activePoint, setActivePoint] = useState<number | null>(null);
-    const width = 500; const height = 200;
-    const padding = { top: 20, right: 20, bottom: 30, left: 30 };
-
-    const points = useMemo(() => {
-        if (records.length < 2) return [];
-        const sortedRecords = [...records].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        return sortedRecords.map((record, i) => ({
-            x: padding.left + (i / (sortedRecords.length - 1)) * (width - padding.left - padding.right),
-            y: height - padding.bottom - (record.score / 100) * (height - padding.top - padding.bottom),
-            ...record
-        }));
-    }, [records]);
-
-    if (records.length < 2) return <div className="flex items-center justify-center h-full text-gray-400">Data tidak cukup untuk menampilkan grafik tren.</div>;
-    
-    const pathD = points.map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(' ');
-
-    return (
-        <div className="relative h-full w-full" onMouseLeave={() => setActivePoint(null)}>
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-                <defs><linearGradient id="gradeGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3" /><stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" /></linearGradient><filter id="lineGlow"><feGaussianBlur stdDeviation="2.5" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                {[0, 25, 50, 75, 100].map(val => { const y = height - padding.bottom - (val / 100) * (height - padding.top - padding.bottom); return (<g key={val}><line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255, 255, 255, 0.1)" /><text x={padding.left - 8} y={y + 3} textAnchor="end" fontSize="10" fill="rgba(255, 255, 255, 0.5)">{val}</text></g>)})}
-                <path d={`${pathD} V ${height - padding.bottom} H ${padding.left} Z`} fill="url(#gradeGradient)" />
-                <path d={pathD} fill="none" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" filter="url(#lineGlow)"/>
-                {points.map((p, i) => (<circle key={i} cx={p.x} cy={p.y} r="8" fill="transparent" onMouseEnter={() => setActivePoint(i)} />))}
-                {activePoint !== null && (<circle cx={points[activePoint].x} cy={points[activePoint].y} r="5" fill="#a78bfa" stroke="white" strokeWidth="2" className="pointer-events-none"/>)}
-            </svg>
-            {activePoint !== null && (<div className="absolute p-2 text-xs text-center transform -translate-x-1/2 bg-gray-900 text-white rounded-md shadow-xl pointer-events-none" style={{ left: `${(points[activePoint].x / width) * 100}%`, top: `${points[activePoint].y - 40}px` }}><p className="font-bold">{points[activePoint].score}</p><p>{points[activePoint].subject}</p><div className="absolute w-2 h-2 bg-gray-900 transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2"></div></div>)}
-        </div>
-    );
+// FIX: Update component props to use the correct RPC-based type.
+const GradesList: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) => {
+  if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><GraduationCapIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Data Nilai</h4><p>Belum ada nilai yang diinput oleh guru.</p></div>;
+  const sortedRecords = [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {sortedRecords.map((record) => {
+        const colors = getScoreColorClasses(record.score);
+        return (
+          <div key={record.id} className={`p-4 rounded-xl border-2 ${colors.border} ${colors.bg}`}>
+            <div className="flex items-center gap-4">
+              <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center font-black text-3xl text-white ${colors.scoreBg}`}>
+                {record.score}
+              </div>
+              <div className="flex-grow">
+                <h4 className="font-extrabold text-lg text-white">{record.subject}</h4>
+                <p className="text-xs text-gray-400 font-medium">
+                  {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+            {record.notes && <p className="text-sm text-gray-300 mt-3 pt-3 border-t-2 border-dashed border-white/10 italic">"{record.notes}"</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
-const ActivityTimeline: React.FC<{ items: TimelineItem[] }> = ({ items }) => {
-    if (items.length === 0) return <div className="text-center py-8 text-gray-400">Tidak ada aktivitas terbaru.</div>;
-    const sortedItems = [...items].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
-    const itemConfig = { report: { icon: FileTextIcon, color: 'bg-blue-500' }, violation: { icon: ShieldAlertIcon, color: 'bg-red-500' }, quiz: { icon: SparklesIcon, color: 'bg-green-500' } };
-
-    return (
-        <div className="space-y-6">
-            {sortedItems.map(item => {
-                const config = itemConfig[item.type]; const Icon = config.icon;
-                return (
-                    <div key={`${item.type}-${item.id}`} className="flex gap-4 relative">
-                        <div className="absolute left-[18px] top-12 h-full border-l-2 border-dashed border-white/20"></div>
-                        <div className="flex-shrink-0 z-10"><div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${config.color}`}><Icon className="w-5 h-5"/></div></div>
-                        <div className="flex-grow pb-4">
-                            <p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric'})}</p>
-                            <h4 className="font-bold text-white mb-1"> {item.type === 'report' ? item.title : item.type === 'violation' ? item.description : item.quiz_name}</h4>
-                            {item.type === 'report' && <p className="text-sm text-gray-300 italic">"{item.notes}"</p>}
-                            {item.type === 'violation' && <p className="text-sm font-semibold text-red-400">Poin Pelanggaran: {item.points}</p>}
-                            {item.type === 'quiz' && <p className="text-sm font-semibold text-green-400">+1 Poin Keaktifan ({item.subject})</p>}
-                        </div>
-                    </div>
-                );
-            })}
+// FIX: Update component props to use the correct RPC-based type.
+const QuizzesList: React.FC<{ records: PortalQuizPoint[] }> = ({ records }) => {
+  if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><SparklesIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Poin Keaktifan</h4><p>Belum ada poin keaktifan yang dicatat.</p></div>;
+  const sortedRecords = [...records].sort((a, b) => new Date(b.quiz_date).getTime() - new Date(a.quiz_date).getTime());
+  return (
+    <div className="space-y-3">
+      {sortedRecords.map((record) => (
+        <div key={record.id} className="flex items-center gap-4 p-3 rounded-lg bg-black/20">
+          <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-2xl bg-green-900/40 text-green-200">
+            +1
+          </div>
+          <div className="flex-grow">
+            <p className="font-semibold text-white">{record.quiz_name}</p>
+            <p className="text-xs text-gray-400">{record.subject} &middot; {new Date(record.quiz_date).toLocaleDateString('id-ID')}</p>
+          </div>
         </div>
-    );
+      ))}
+    </div>
+  );
 };
 
 const ParentPortalPage: React.FC = () => {
+    // --- HOOKS (All at top level) ---
     const { studentId } = useParams<{ studentId: string }>();
     const navigate = useNavigate();
     const toast = useToast();
-    const accessCode = sessionStorage.getItem('portal_access_code');
     const queryClient = useQueryClient();
+    const accessCode = sessionStorage.getItem('portal_access_code');
+    const [activeSection, setActiveSection] = useState('summary');
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // --- DATA FETCHING ---
+    const { data: portalData, isLoading, isError, error } = useQuery<PortalData>({
+        queryKey: ['portalData', studentId, accessCode],
+        queryFn: () => fetchPortalData(studentId!, accessCode!),
+        enabled: !!studentId && !!accessCode, // This correctly handles the case where accessCode might be null initially
+    });
+
+    // --- SIDE EFFECTS ---
     useEffect(() => {
-        if (!accessCode) { toast.error("Sesi tidak valid. Silakan masuk kembali."); navigate('/portal-login'); }
+        // Conditional logic is now safely inside useEffect
+        if (!accessCode) {
+            toast.error("Kode akses tidak ditemukan. Silakan login kembali.");
+            navigate('/portal-login', { replace: true });
+        }
     }, [accessCode, navigate, toast]);
 
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ['portalData', studentId, accessCode],
-        queryFn: async (): Promise<PortalData> => {
-            if (!studentId || !accessCode) throw new Error("ID Siswa atau Kode Akses tidak ada.");
-            const { data: portalData, error } = await supabase.rpc('get_student_portal_data', { student_id_param: studentId, access_code_param: accessCode });
-            if (error) throw error; 
-            
-            // Fetch communications separately
-            const { data: comms, error: commsError } = await supabase.from('communications').select('*').eq('student_id', studentId).order('created_at', { ascending: true });
-            if (commsError) throw commsError;
-
-            // Fetch teacherId from the student record itself
-            const { data: studentRecord, error: studentError } = await supabase.from('students').select('user_id').eq('id', studentId).single();
-            if(studentError) throw studentError;
-            const teacherId = studentRecord?.user_id;
-
-            let teacher = null;
-            if(teacherId) {
-                // Supabase doesn't let us query the auth.users table directly for metadata via API key.
-                // A workaround is a server-side function, but for this client-side app, we'll assume a 'profiles' table exists or fetch limited public data.
-                // For this app, we'll simulate it, but in a real app, a 'profiles' table public to read `name` and `avatar_url` is best practice.
-                teacher = { name: 'Guru Kelas', avatar_url: `https://i.pravatar.cc/150?u=${teacherId}`, user_id: teacherId };
-            }
-
-            return { ...portalData, communications: comms || [], teacher };
-        },
-        enabled: !!studentId && !!accessCode, retry: 1,
-    });
-    
     useEffect(() => {
-        const markMessagesAsRead = async () => {
-            if (data?.communications) {
-                const unreadIds = data.communications
-                    .filter(m => m.sender === 'teacher' && !m.is_read)
-                    .map(m => m.id);
+        if (portalData?.communications) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [portalData?.communications]);
 
-                if (unreadIds.length > 0) {
-                    const { error } = await supabase
-                        .from('communications')
-                        .update({ is_read: true })
-                        .in('id', unreadIds);
-                    
-                    if (error) {
-                        console.error("Failed to mark messages as read:", error);
-                    } else {
-                        queryClient.invalidateQueries({ queryKey: ['portalData', studentId] });
-                    }
-                }
-            }
-        };
-
-        markMessagesAsRead();
-    }, [data?.communications, studentId, queryClient]);
-
+    // --- MUTATIONS ---
     const sendMessageMutation = useMutation({
         mutationFn: async (messageText: string) => {
-            if (!studentId || !data?.teacher?.user_id) throw new Error("Data guru tidak ditemukan.");
+            if (!studentId || !portalData?.teacher?.user_id) throw new Error("Data tidak lengkap");
             const { error } = await supabase.from('communications').insert({
                 student_id: studentId,
-                user_id: data.teacher.user_id,
+                user_id: portalData.teacher.user_id,
                 message: messageText,
                 sender: 'parent',
                 is_read: false
@@ -262,108 +189,210 @@ const ParentPortalPage: React.FC = () => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['portalData', studentId] });
+            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
             setNewMessage('');
         },
-        onError: (error: Error) => toast.error(error.message)
+        onError: (err: Error) => toast.error(`Gagal mengirim pesan: ${err.message}`)
     });
 
-    const summaries = useMemo(() => {
-        if (!data) return { avgGrade: 'N/A', attendancePercent: 0, totalViolationPoints: 0 };
-        const { academicRecords, attendanceRecords, violations } = data;
-        const avgGrade = academicRecords.length > 0 ? Math.round(academicRecords.reduce((a, b) => a + b.score, 0) / academicRecords.length) : 'N/A';
-        const attendancePercent = attendanceRecords.length > 0 ? Math.round((attendanceRecords.filter(r => r.status === 'Hadir').length / attendanceRecords.length) * 100) : 0;
-        const totalViolationPoints = violations.reduce((sum, v) => sum + v.points, 0);
-        return { avgGrade, attendancePercent, totalViolationPoints };
-    }, [data]);
-    
-    const timelineItems: TimelineItem[] = useMemo(() => {
-        if (!data) return [];
-        const violations: TimelineItem[] = data.violations.map(v => ({...v, type: 'violation', date: v.date}));
-        const reports: TimelineItem[] = data.reports.map(r => ({...r, type: 'report', date: r.date}));
-        const quizzes: TimelineItem[] = data.quizPoints.map(q => ({...q, type: 'quiz', date: q.quiz_date}));
-        return [...violations, ...reports, ...quizzes];
-    }, [data]);
+    // --- MEMOIZED VALUES ---
+    const attendanceSummary = useMemo(() => {
+        const summary = { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+        portalData?.attendanceRecords.forEach(rec => { (summary as any)[rec.status]++; });
+        return summary;
+    }, [portalData?.attendanceRecords]);
 
-    const handleLogout = () => { sessionStorage.removeItem('portal_access_code'); navigate('/portal-login'); };
+    const totalViolationPoints = useMemo(() => portalData?.violations.reduce((sum, v) => sum + v.points, 0) || 0, [portalData?.violations]);
     
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [data?.communications]);
-
-    if (isLoading) return <div className="flex items-center justify-center min-h-screen cosmic-bg"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
-    if (isError) {
-        console.error(error);
+    // --- EVENT HANDLERS ---
+    const handleLogout = () => {
         sessionStorage.removeItem('portal_access_code');
-        return (<div className="flex flex-col items-center justify-center min-h-screen cosmic-bg text-white p-4 text-center"><h1 className="text-2xl font-bold">Akses Ditolak</h1><p className="mt-2">Kode akses tidak valid atau sesi telah berakhir. Silakan coba masuk lagi.</p><Button onClick={() => navigate('/portal-login')} className="mt-6">Kembali ke Halaman Login</Button></div>);
+        navigate('/portal-login', { replace: true });
+    };
+
+    const handleSendMessage = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newMessage.trim()) {
+            sendMessageMutation.mutate(newMessage);
+        }
+    };
+    
+    // --- RENDER LOGIC ---
+    if (!accessCode) {
+        return (
+            <div className="flex items-center justify-center h-screen cosmic-bg">
+                <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen cosmic-bg">
+                <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                <p className="ml-4 text-lg text-white">Memuat data siswa...</p>
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen cosmic-bg p-4 text-center">
+                <h2 className="text-2xl font-bold text-red-400">Gagal Memuat Data</h2>
+                <p className="text-gray-300 mt-2">Terjadi kesalahan: {error.message}</p>
+                <p className="text-gray-400 mt-1">Ini mungkin karena kode akses salah atau sudah tidak berlaku. Silakan coba login kembali.</p>
+                <Button onClick={handleLogout} className="mt-6"><LogoutIcon className="w-4 h-4 mr-2" />Kembali ke Login</Button>
+            </div>
+        );
     }
     
-    const { student, academicRecords, violations, communications, teacher } = data!;
-
-    return (
-        <div className="min-h-screen cosmic-bg text-white font-sans p-4 sm:p-6 lg:p-8">
-            <div className="max-w-7xl mx-auto">
-                <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <div className="flex items-center gap-6"><img src={student.avatar_url} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-white/20 shadow-lg"/><div><h1 className="text-4xl font-bold text-shadow-md">{student.name}</h1><p className="text-xl text-indigo-200">Kelas {student.classes?.name || 'N/A'}</p></div></div>
-                    <Button variant="outline" onClick={handleLogout} className="bg-white/10 border-white/20 hover:bg-white/20 self-start sm:self-center"><LogoutIcon className="w-4 h-4 mr-2"/>Logout</Button>
-                </header>
-
-                <main className="animate-fade-in-up">
-                    <Tabs defaultValue="overview">
-                         <div className="flex justify-center mb-6">
-                            <TabsList className="bg-black/20 border border-white/10 text-white">
-                                <TabsTrigger value="overview">Ringkasan</TabsTrigger>
-                                <TabsTrigger value="communication">Komunikasi</TabsTrigger>
-                            </TabsList>
+    if (!portalData) return null;
+    
+    const { student, reports, attendanceRecords, academicRecords, violations, quizPoints, communications, teacher } = portalData;
+    
+    const navItems = [
+        { id: 'summary', label: 'Ringkasan', icon: TrendingUpIcon },
+        { id: 'grades', label: 'Nilai', icon: BarChartIcon },
+        { id: 'attendance', label: 'Absensi', icon: CalendarIcon },
+        { id: 'violations', label: 'Pelanggaran', icon: ShieldAlertIcon },
+        { id: 'quizzes', label: 'Keaktifan', icon: SparklesIcon },
+        { id: 'reports', label: 'Catatan', icon: FileTextIcon },
+        { id: 'communication', label: 'Komunikasi', icon: MessageSquareIcon },
+    ];
+    const unreadMessages = communications.filter(m => m.sender === 'teacher' && !m.is_read).length;
+    
+    const renderContent = () => {
+        switch (activeSection) {
+            case 'summary':
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <SummaryCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} colorClass="bg-green-500" />
+                            <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-red-500" />
+                            <SummaryCard icon={BarChartIcon} label="Nilai Rata-Rata" value={academicRecords.length > 0 ? Math.round(academicRecords.reduce((sum, r) => sum + r.score, 0) / academicRecords.length) : 'N/A'} colorClass="bg-blue-500" />
+                            <SummaryCard icon={SparklesIcon} label="Poin Keaktifan" value={quizPoints.length} colorClass="bg-yellow-500" />
                         </div>
-
-                        <TabsContent value="overview">
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                                <SummaryCard icon={BarChartIcon} label="Rata-rata Nilai" value={summaries.avgGrade} colorClass="bg-purple-500" />
-                                <SummaryCard icon={CheckCircleIcon} label="Persentase Kehadiran" value={`${summaries.attendancePercent}%`} colorClass="bg-green-500" />
-                                <SummaryCard icon={ShieldAlertIcon} label="Total Poin Pelanggaran" value={summaries.totalViolationPoints} colorClass="bg-red-500" />
+                        <GlassCard>
+                            <CardHeader><CardTitle>Nilai Terbaru</CardTitle></CardHeader>
+                            <CardContent><GradesList records={[...academicRecords].slice(-4)} /></CardContent>
+                        </GlassCard>
+                    </div>
+                );
+            case 'grades': return <GlassCard className="animate-fade-in"><CardHeader><CardTitle>Semua Nilai Akademik</CardTitle></CardHeader><CardContent><GradesList records={academicRecords} /></CardContent></GlassCard>;
+            case 'attendance': return (
+                <GlassCard className="animate-fade-in">
+                    <CardHeader><CardTitle>Riwayat Absensi</CardTitle></CardHeader>
+                    <CardContent className="max-h-[60vh] overflow-y-auto">
+                        <div className="space-y-2">
+                        {[...attendanceRecords].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(rec => (
+                            <div key={rec.id} className="flex justify-between items-center p-3 bg-black/20 rounded-lg">
+                                <p className="font-semibold text-white">{new Date(rec.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                    rec.status === 'Hadir' ? 'bg-green-500/20 text-green-300' :
+                                    rec.status === 'Izin' ? 'bg-yellow-500/20 text-yellow-300' :
+                                    rec.status === 'Sakit' ? 'bg-blue-500/20 text-blue-300' :
+                                    'bg-red-500/20 text-red-300'
+                                }`}>{rec.status}</span>
                             </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-                                <div className="lg:col-span-4"><AttendanceCalendar records={data.attendanceRecords} /></div>
-                                <div className="lg:col-span-2"><GlassCard><CardHeader><CardTitle className="flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-yellow-400"/>Aktivitas Terbaru</CardTitle></CardHeader><CardContent><ActivityTimeline items={timelineItems}/></CardContent></GlassCard></div>
-                                <div className="lg:col-span-3"><GlassCard><CardHeader><CardTitle className="flex items-center gap-2"><TrendingUpIcon className="w-5 h-5 text-purple-400"/>Performa Akademik</CardTitle></CardHeader><CardContent><div className="h-64"><GradeTrendChart records={academicRecords}/></div></CardContent></GlassCard></div>
-                                <div className="lg:col-span-3"><GlassCard><CardHeader><CardTitle className="flex items-center gap-2"><ShieldAlertIcon className="w-5 h-5 text-red-400"/>Ringkasan Pelanggaran</CardTitle></CardHeader><CardContent className="text-center"><p className="text-6xl font-bold text-red-400">{summaries.totalViolationPoints}</p><p className="text-sm text-gray-400 mb-4">Total Poin</p>{violations.length > 0 ? (<div className="text-left space-y-2 text-sm max-h-40 overflow-y-auto">{[...violations].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,3).map(v => (<div key={v.id} className="p-2 bg-black/20 rounded-lg"><p className="font-semibold">{v.description} <span className="font-normal text-red-400">({v.points} poin)</span></p><p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')}</p></div>))}</div>) : (<p className="text-center text-gray-400 py-4">Tidak ada catatan pelanggaran.</p>)}</CardContent></GlassCard></div>
+                        ))}
+                        </div>
+                    </CardContent>
+                </GlassCard>
+            );
+            case 'violations': return (
+                <GlassCard className="animate-fade-in">
+                    <CardHeader><CardTitle>Riwayat Pelanggaran</CardTitle></CardHeader>
+                    <CardContent>
+                        {violations.length > 0 ? (<div className="space-y-3">{[...violations].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(v => (<div key={v.id} className="p-3 rounded-lg bg-red-900/20"><p className="font-semibold text-white">{v.description}</p><p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')} - <span className="font-bold text-red-400">{v.points} poin</span></p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><ShieldAlertIcon className="w-16 h-16 mx-auto mb-4 text-gray-500"/><h4 className="font-semibold">Tidak Ada Pelanggaran</h4><p>Siswa ini memiliki catatan perilaku yang bersih.</p></div>)}
+                    </CardContent>
+                </GlassCard>
+            );
+            case 'quizzes': return <GlassCard className="animate-fade-in"><CardHeader><CardTitle>Semua Poin Keaktifan</CardTitle></CardHeader><CardContent><QuizzesList records={quizPoints} /></CardContent></GlassCard>;
+            case 'reports': return (
+                <GlassCard className="animate-fade-in">
+                    <CardHeader><CardTitle>Catatan dari Guru</CardTitle></CardHeader>
+                    <CardContent>
+                        {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="p-4 rounded-lg bg-black/20"><h4 className="font-bold text-white">{r.title}</h4><p className="text-xs text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-300 whitespace-pre-wrap">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><FileTextIcon className="w-16 h-16 mx-auto mb-4 text-gray-500"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan khusus dari guru.</p></div>)}
+                    </CardContent>
+                </GlassCard>
+            );
+            case 'communication': return (
+                 <GlassCard className="animate-fade-in flex flex-col h-[70vh]">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-3">
+                            <MessageSquareIcon className="w-5 h-5 text-blue-400"/> Komunikasi dengan Wali Kelas
+                        </CardTitle>
+                    </CardHeader>
+                    <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
+                        {communications.map(msg => (
+                            <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
+                                {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
+                                <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
+                                    <p className="whitespace-pre-wrap">{msg.message}</p>
+                                    <div className={`text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 text-right' : 'text-gray-400 text-right'}`}>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</div>
+                                </div>
+                                {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
                             </div>
-                        </TabsContent>
-
-                        <TabsContent value="communication">
-                            <GlassCard className="flex flex-col h-[70vh]">
-                                <CardHeader><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Guru</CardTitle></CardHeader>
-                                <CardContent className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
-                                    {communications.map(msg => (
-                                        <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
-                                            {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt={teacher?.name}/>}
-                                            <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none text-white'}`}>
-                                                <p className="whitespace-pre-wrap">{msg.message}</p>
-                                                <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 justify-end' : 'text-gray-400 justify-end'}`}>
-                                                    <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
-                                                    {msg.sender === 'parent' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
-                                                </div>
-                                            </div>
-                                            {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
-                                        </div>
-                                    ))}
-                                    <div ref={messagesEndRef} />
-                                </CardContent>
-                                <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessageMutation.mutate(newMessage); }} className="p-4 border-t border-white/10 flex items-center gap-2">
-                                    <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-gray-400" disabled={sendMessageMutation.isPending}/>
-                                    <Button type="submit" size="icon" disabled={!newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
-                                </form>
-                            </GlassCard>
-                        </TabsContent>
-                    </Tabs>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
+                    <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 flex items-center gap-2">
+                        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={sendMessageMutation.isPending}/>
+                        <Button type="submit" size="icon" disabled={!newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
+                    </form>
+                </GlassCard>
+            );
+            default: return null;
+        }
+    };
+    
+    return (
+        <div className="min-h-screen cosmic-bg text-white p-4 sm:p-6 md:p-8">
+            <div className="max-w-6xl mx-auto">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <div className="flex items-center gap-4">
+                        <img src={student.avatar_url || `https://i.pravatar.cc/150?u=${student.id}`} alt={student.name} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-4 border-white/10 shadow-lg" />
+                        <div>
+                            <p className="text-sm text-indigo-200">Portal Siswa</p>
+                            <h1 className="text-2xl md:text-3xl font-bold text-white">{student.name}</h1>
+                            <p className="text-md text-gray-300">Kelas {student.classes.name}</p>
+                        </div>
+                    </div>
+                    <Button variant="outline" onClick={handleLogout} className="bg-white/10 border-white/20 hover:bg-white/20">
+                        <LogoutIcon className="w-4 h-4 mr-2" /> Logout
+                    </Button>
+                </header>
+                
+                <main className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <aside className="lg:col-span-1">
+                        <GlassCard className="p-3 sticky top-6">
+                            <nav className="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
+                                {navItems.map(item => (
+                                    <button 
+                                        key={item.id}
+                                        onClick={() => setActiveSection(item.id)}
+                                        className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex-shrink-0 ${activeSection === item.id ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-md' : 'text-gray-300 hover:bg-black/20 hover:text-purple-400'}`}
+                                    >
+                                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                                        <span className="text-sm font-medium">{item.label}</span>
+                                        {item.id === 'communication' && unreadMessages > 0 && (
+                                            <span className="ml-auto bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
+                                                {unreadMessages}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </nav>
+                        </GlassCard>
+                    </aside>
+                    <section className="lg:col-span-3">
+                        {renderContent()}
+                    </section>
                 </main>
-
-                <footer className="text-center mt-12 text-xs text-gray-400"><p>Portal Siswa Cerdas &copy; {new Date().getFullYear()}</p></footer>
             </div>
         </div>
     );
 };
 
+// FIX: Add default export statement.
 export default ParentPortalPage;

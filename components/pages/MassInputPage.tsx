@@ -9,13 +9,14 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Checkbox } from '../ui/Checkbox';
 import { useOfflineStatus } from '../../hooks/useOfflineStatus';
-import { ClipboardPenIcon, GraduationCapIcon, PrinterIcon, ShieldAlertIcon, CheckSquareIcon, ArrowLeftIcon, ClipboardPasteIcon, SparklesIcon, AlertCircleIcon, PencilIcon } from '../Icons';
+import { ClipboardPenIcon, GraduationCapIcon, PrinterIcon, ShieldAlertIcon, CheckSquareIcon, ArrowLeftIcon, ClipboardPasteIcon, SparklesIcon, AlertCircleIcon, PencilIcon, FileTextIcon } from '../Icons';
 import { violationList } from '../../services/violations.data';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AttendanceStatus } from '../../types';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import { Modal } from '../ui/Modal';
+import { generateStudentReport, ReportData as ReportDataType } from '../../services/pdfGenerator';
 
 
 type ClassRow = Database['public']['Tables']['classes']['Row'];
@@ -37,7 +38,7 @@ type ReportData = {
     quizPoints: QuizPointRow[],
 };
 
-type InputMode = 'quiz' | 'subject_grade' | 'violation' | 'bulk_report';
+type InputMode = 'quiz' | 'subject_grade' | 'violation' | 'bulk_report' | 'academic_print';
 type Step = 1 | 2; // Step 1: Mode selection, Step 2: Configuration & Input
 
 type ReviewDataItem = { studentId: string; studentName: string; score: string; originalLine: string; };
@@ -49,6 +50,7 @@ const actionCards: { mode: InputMode; title: string; description: string; icon: 
     { mode: 'quiz', title: 'Input Poin Keaktifan', description: 'Beri poin untuk siswa yang aktif di kelas (bertanya, maju, dll).', icon: CheckSquareIcon },
     { mode: 'violation', title: 'Input Pelanggaran', description: 'Catat poin pelanggaran untuk beberapa siswa sekaligus.', icon: ShieldAlertIcon },
     { mode: 'bulk_report', title: 'Cetak Rapor Massal', description: 'Cetak beberapa rapor siswa dari satu kelas dalam satu file.', icon: PrinterIcon },
+    { mode: 'academic_print', title: 'Cetak Nilai Akademik', description: 'Cetak rekap nilai per mata pelajaran untuk satu kelas.', icon: FileTextIcon },
 ];
 
 // --- Sub-components extracted for stability ---
@@ -59,7 +61,7 @@ const Step1_ModeSelection: React.FC<{ handleModeSelect: (mode: InputMode) => voi
             <h1 className="text-4xl font-bold text-white text-shadow-md">Pusat Input Cerdas</h1>
             <p className="mt-2 text-lg text-indigo-200">Pilih aksi massal yang ingin Anda lakukan.</p>
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {actionCards.map(card => (
                 <div key={card.mode} onClick={() => handleModeSelect(card.mode)} className="relative overflow-hidden cursor-pointer group bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6 text-center transition-all duration-300 hover:bg-white/10 hover:border-purple-400 hover:-translate-y-2 holographic-shine-hover">
                     <div className="flex justify-center mb-4">
@@ -106,12 +108,17 @@ interface Step2Props {
     isExporting: boolean;
     exportProgress: string;
     handlePrintBulkReports: () => Promise<void>;
+    handlePrintGrades: () => Promise<void>;
     handleSubmit: () => void;
     isSubmitting: boolean;
     isOnline: boolean;
     gradedCount: number;
     searchTerm: string;
     setSearchTerm: (value: string) => void;
+    noteMethod: 'ai' | 'template';
+    setNoteMethod: React.Dispatch<React.SetStateAction<'ai' | 'template'>>;
+    templateNote: string;
+    setTemplateNote: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
@@ -121,8 +128,8 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
     setSelectedViolationCode, violationDate, setViolationDate, selectedViolation,
     students, isLoadingStudents, selectedStudentIds, handleSelectAllStudents,
     handleStudentSelect, isAllSelected, isExporting, exportProgress,
-    handlePrintBulkReports, handleSubmit, isSubmitting, isOnline, gradedCount,
-    searchTerm, setSearchTerm
+    handlePrintBulkReports, handlePrintGrades, handleSubmit, isSubmitting, isOnline, gradedCount,
+    searchTerm, setSearchTerm, noteMethod, setNoteMethod, templateNote, setTemplateNote
 }) => {
     const currentAction = actionCards.find(c => c.mode === mode)!;
 
@@ -135,6 +142,36 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
     };
     
     const inputStyles = "bg-white/10 border-white/20 placeholder:text-gray-400 focus:bg-white/20 focus:border-purple-400";
+
+    const commonStudentListUI = (
+      <>
+        <div className="mb-4 relative">
+          <svg className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <Input type="text" placeholder="Cari nama siswa..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`pl-10 ${inputStyles}`} />
+        </div>
+        {isLoadingStudents && <div className="text-center p-8">Memuat siswa...</div>}
+        {!selectedClass && <div className="text-center p-8 text-gray-400">Pilih kelas untuk menampilkan daftar siswa.</div>}
+        {students && students.length > 0 && (
+          <div className="overflow-x-auto"><table className="w-full text-sm text-left text-gray-300">
+            <thead className="text-xs text-gray-200 uppercase bg-white/10"><tr>
+              <th scope="col" className="p-4"><Checkbox checked={isAllSelected} onChange={e => handleSelectAllStudents(e.target.checked)} /></th>
+              <th scope="col" className="px-6 py-3">Nama Siswa</th>
+              <th scope="col" className="px-6 py-3">Pilih</th>
+            </tr></thead>
+            <tbody>{students.map(s => (<tr key={s.id} className="border-b border-white/10 hover:bg-white/5">
+              <td className="w-4 p-4"><Checkbox checked={selectedStudentIds.has(s.id)} onChange={() => handleStudentSelect(s.id)} /></td>
+              <th scope="row" className="px-6 py-4 font-medium whitespace-nowrap text-white">{s.name}</th>
+              <td className="px-6 py-4"><Checkbox checked={selectedStudentIds.has(s.id)} onChange={() => handleStudentSelect(s.id)} /></td>
+            </tr>))}</tbody>
+          </table></div>
+        )}
+        {students && students.length === 0 && selectedClass && (
+          <div className="text-center p-8 text-gray-400">
+            {searchTerm ? 'Tidak ada siswa yang cocok dengan pencarian Anda.' : 'Tidak ada siswa di kelas ini.'}
+          </div>
+        )}
+      </>
+    );
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -164,6 +201,9 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
                         <div className="lg:col-span-1"><label className="block text-sm font-medium mb-1 text-gray-200">Mata Pelajaran</label><Input name="subject" value={subjectGradeInfo.subject} onChange={e => handleInfoChange(setSubjectGradeInfo, e)} placeholder="cth. Bahasa Indonesia" className={inputStyles}/></div>
                         <div className="lg:col-span-2"><label className="block text-sm font-medium mb-1 text-gray-200">Catatan (Opsional)</label><Input name="notes" value={subjectGradeInfo.notes} onChange={e => handleInfoChange(setSubjectGradeInfo, e)} placeholder="cth. Penilaian Akhir Semester" className={inputStyles}/></div>
                     </>}
+                     {mode === 'academic_print' && <>
+                        <div className="lg:col-span-3"><label className="block text-sm font-medium mb-1 text-gray-200">Mata Pelajaran</label><Input name="subject" value={subjectGradeInfo.subject} onChange={e => handleInfoChange(setSubjectGradeInfo, e)} placeholder="cth. Bahasa Indonesia" className={inputStyles}/></div>
+                    </>}
                     {mode === 'violation' && <>
                         <div>
                             <label className="block text-sm font-medium mb-1 text-gray-200">Jenis Pelanggaran</label>
@@ -175,6 +215,42 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
                         </div>
                         <div><label className="block text-sm font-medium mb-1 text-gray-200">Tanggal</label><Input type="date" value={violationDate} onChange={e => setViolationDate(e.target.value)} className={inputStyles}/></div>
                     </>}
+                     {mode === 'bulk_report' && (
+                        <>
+                            <div className="lg:col-span-3">
+                                <label className="block text-sm font-medium mb-2 text-gray-200">Metode Catatan Wali Kelas</label>
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <label className="flex items-center gap-3 p-3 rounded-lg bg-black/20 border-2 border-transparent has-[:checked]:border-purple-500 has-[:checked]:bg-purple-900/20 cursor-pointer transition-all flex-1">
+                                        <input type="radio" name="noteMethod" value="ai" checked={noteMethod === 'ai'} onChange={() => setNoteMethod('ai')} className="form-radio" />
+                                        <div>
+                                            <p className="font-semibold text-white">Buat Catatan AI Otomatis</p>
+                                            <p className="text-xs text-gray-400">AI akan menganalisis data setiap siswa.</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-center gap-3 p-3 rounded-lg bg-black/20 border-2 border-transparent has-[:checked]:border-purple-500 has-[:checked]:bg-purple-900/20 cursor-pointer transition-all flex-1">
+                                        <input type="radio" name="noteMethod" value="template" checked={noteMethod === 'template'} onChange={() => setNoteMethod('template')} className="form-radio" />
+                                        <div>
+                                            <p className="font-semibold text-white">Gunakan Catatan Template</p>
+                                            <p className="text-xs text-gray-400">Gunakan satu catatan untuk semua siswa.</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            {noteMethod === 'template' && (
+                                <div className="lg:col-span-3 animate-fade-in">
+                                    <label htmlFor="template-note" className="block text-sm font-medium mb-1 text-gray-200">Template Catatan</label>
+                                    <textarea
+                                        id="template-note"
+                                        value={templateNote}
+                                        onChange={(e) => setTemplateNote(e.target.value)}
+                                        rows={4}
+                                        className={`w-full p-2 border rounded-md text-white ${inputStyles}`}
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Gunakan `[Nama Siswa]` untuk menyisipkan nama siswa secara otomatis.</p>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -191,42 +267,56 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
             <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10">
                 <div className="p-6 border-b border-white/10"><h3 className="font-bold text-lg text-white">Tahap 2: Input Data Siswa</h3></div>
                 <div className="p-6">
-                    <div className="mb-4 relative">
-                        <svg className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <Input type="text" placeholder="Cari nama siswa..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`pl-10 ${inputStyles}`}/>
-                    </div>
-                    {isLoadingStudents && <div className="text-center p-8">Memuat siswa...</div>}
-                    {!selectedClass && <div className="text-center p-8 text-gray-400">Pilih kelas untuk menampilkan daftar siswa.</div>}
-                    {students && students.length > 0 && (
-                         <div className="overflow-x-auto"><table className="w-full text-sm text-left text-gray-300">
-                            <thead className="text-xs text-gray-200 uppercase bg-white/10"><tr>
-                                <th scope="col" className="p-4">{mode !== 'subject_grade' && <Checkbox checked={isAllSelected} onChange={e => handleSelectAllStudents(e.target.checked)} />}</th>
-                                <th scope="col" className="px-6 py-3">Nama Siswa</th>
-                                <th scope="col" className="px-6 py-3">{mode === 'subject_grade' ? 'Nilai (0-100)' : 'Pilih'}</th>
-                            </tr></thead>
-                            <tbody>{students.map(s => (<tr key={s.id} className="border-b border-white/10 hover:bg-white/5">
-                                <td className="w-4 p-4">{mode !== 'subject_grade' && <Checkbox checked={selectedStudentIds.has(s.id)} onChange={() => handleStudentSelect(s.id)} />}</td>
-                                <th scope="row" className="px-6 py-4 font-medium whitespace-nowrap text-white">{s.name}</th>
-                                <td className="px-6 py-4">{mode === 'subject_grade' ? <Input type="number" min="0" max="100" value={scores[s.id] || ''} onChange={e => handleScoreChange(s.id, e.target.value)} className={`w-24 h-8 ${inputStyles}`}/> : <Checkbox checked={selectedStudentIds.has(s.id)} onChange={() => handleStudentSelect(s.id)} />}</td>
-                            </tr>))}</tbody>
-                        </table></div>
-                    )}
-                    {students && students.length === 0 && selectedClass && (
-                        <div className="text-center p-8 text-gray-400">
-                            {searchTerm ? 'Tidak ada siswa yang cocok dengan pencarian Anda.' : 'Tidak ada siswa di kelas ini.'}
+                   {(mode === 'quiz' || mode === 'violation') && commonStudentListUI}
+                   {mode === 'bulk_report' && commonStudentListUI}
+                   {mode === 'academic_print' && commonStudentListUI}
+                   {mode === 'subject_grade' && <>
+                        <div className="mb-4 relative">
+                            <svg className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <Input type="text" placeholder="Cari nama siswa..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`pl-10 ${inputStyles}`}/>
                         </div>
-                    )}
+                        {isLoadingStudents && <div className="text-center p-8">Memuat siswa...</div>}
+                        {!selectedClass && <div className="text-center p-8 text-gray-400">Pilih kelas untuk menampilkan daftar siswa.</div>}
+                        {students && students.length > 0 && (
+                             <div className="overflow-x-auto"><table className="w-full text-sm text-left text-gray-300">
+                                <thead className="text-xs text-gray-200 uppercase bg-white/10"><tr>
+                                    <th scope="col" className="px-6 py-3">Nama Siswa</th>
+                                    <th scope="col" className="px-6 py-3">Nilai (0-100)</th>
+                                </tr></thead>
+                                <tbody>{students.map(s => (<tr key={s.id} className="border-b border-white/10 hover:bg-white/5">
+                                    <th scope="row" className="px-6 py-4 font-medium whitespace-nowrap text-white">{s.name}</th>
+                                    <td className="px-6 py-4"><Input type="number" min="0" max="100" value={scores[s.id] || ''} onChange={e => handleScoreChange(s.id, e.target.value)} className={`w-24 h-8 ${inputStyles}`}/></td>
+                                </tr>))}</tbody>
+                            </table></div>
+                        )}
+                        {students && students.length === 0 && selectedClass && (
+                            <div className="text-center p-8 text-gray-400">
+                                {searchTerm ? 'Tidak ada siswa yang cocok dengan pencarian Anda.' : 'Tidak ada siswa di kelas ini.'}
+                            </div>
+                        )}
+                   </>}
                 </div>
-                {students && students.length > 0 && <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-black/20 p-4 -m-6 mt-6 rounded-b-2xl">
-                    {mode === 'subject_grade' ? (
-                        <div className="text-sm text-gray-300">{gradedCount} / {students.length} siswa dinilai</div>
+                {students && students.length > 0 && <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-black/20 p-4 border-t border-white/10 rounded-b-2xl">
+                    <p className="text-sm text-gray-300">
+                        {mode === 'subject_grade' ? `${gradedCount} dari ${students.length} siswa telah dinilai.` : `${selectedStudentIds.size} dari ${students.length} siswa dipilih.`}
+                    </p>
+                    {isExporting ? (
+                        <div className="w-full sm:w-auto text-center">
+                            <div className="relative pt-1">
+                                <div className="overflow-hidden h-2 mb-2 text-xs flex rounded bg-purple-200/20">
+                                    <div style={{ width: exportProgress }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500"></div>
+                                </div>
+                                <p className="text-xs text-purple-200">{exportProgress}</p>
+                            </div>
+                        </div>
                     ) : (
-                        <div className="text-sm text-gray-300">{selectedStudentIds.size} / {students.length} siswa dipilih</div>
-                    )}
-                    {mode === 'bulk_report' ? (
-                        <Button onClick={handlePrintBulkReports} disabled={isExporting || selectedStudentIds.size === 0 || !isOnline} className="bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/40 transition-all duration-300 hover:-translate-y-0.5"><PrinterIcon className="w-4 h-4 mr-2" />{isExporting ? `Mencetak ${exportProgress}...` : `Cetak ${selectedStudentIds.size} Rapor`}</Button>
-                    ) : (
-                        <Button onClick={handleSubmit} disabled={isSubmitting || !isOnline} className="bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-lg hover:shadow-blue-500/40 transition-all duration-300 hover:-translate-y-0.5">{isSubmitting ? 'Menyimpan...' : 'Simpan Semua'}</Button>
+                         <Button
+                            onClick={mode === 'bulk_report' ? handlePrintBulkReports : (mode === 'academic_print' ? handlePrintGrades : handleSubmit)}
+                            disabled={isSubmitting || !isOnline}
+                            className="w-full sm:w-auto"
+                        >
+                            {isSubmitting ? 'Memproses...' : (mode.includes('report') || mode.includes('print')) ? 'Cetak Laporan' : 'Simpan Data'}
+                        </Button>
                     )}
                 </div>}
             </div>
@@ -234,308 +324,374 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
     );
 };
 
-
-// --- Main Page Component ---
-
 const MassInputPage: React.FC = () => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
     const isOnline = useOfflineStatus();
-
-    const [step, setStep] = useState<Step>(1);
-    const [mode, setMode] = useState<InputMode>('subject_grade');
-    const [selectedClass, setSelectedClass] = useState<string>('');
-    const [searchTerm, setSearchTerm] = useState('');
     
-    const [quizInfo, setQuizInfo] = useState({ name: '', subject: '', date: new Date().toISOString().slice(0, 10) });
+    const [step, setStep] = useState<Step>(1);
+    const [mode, setMode] = useState<InputMode | null>(null);
+    const [selectedClass, setSelectedClass] = useState<string>('');
+    const [quizInfo, setQuizInfo] = useState({ name: '', subject: '', date: new Date().toISOString().slice(0,10) });
     const [subjectGradeInfo, setSubjectGradeInfo] = useState({ subject: '', notes: '' });
     const [scores, setScores] = useState<Record<string, string>>({});
     const [pasteData, setPasteData] = useState('');
     const [isParsing, setIsParsing] = useState(false);
-    
-    const [selectedViolationCode, setSelectedViolationCode] = useState<string>('');
-    const [violationDate, setViolationDate] = useState<string>(new Date().toISOString().slice(0, 10));
-    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-    
+    const [selectedViolationCode, setSelectedViolationCode] = useState('');
+    const [violationDate, setViolationDate] = useState(new Date().toISOString().slice(0,10));
+    const [selectedStudentIds, setSelectedStudentIds] = useState(new Set<string>());
+    const [searchTerm, setSearchTerm] = useState('');
     const [isExporting, setIsExporting] = useState(false);
-    const [exportProgress, setExportProgress] = useState('');
-    const [reviewData, setReviewData] = useState<ReviewDataItem[] | null>(null);
+    const [exportProgress, setExportProgress] = useState("0%");
+    const [noteMethod, setNoteMethod] = useState<'ai' | 'template'>('ai');
+    const [templateNote, setTemplateNote] = useState(
+        'Ananda [Nama Siswa] menunjukkan perkembangan yang baik semester ini. Terus tingkatkan semangat belajar dan jangan ragu bertanya jika ada kesulitan.'
+    );
 
     const { data: classes, isLoading: isLoadingClasses } = useQuery({
         queryKey: ['classes', user?.id],
         queryFn: async (): Promise<ClassRow[]> => {
-            const { data, error } = await supabase.from('classes').select('*').eq('user_id', user!.id); if (error) throw error; return data || [];
+            const { data, error } = await supabase.from('classes').select('*').eq('user_id', user!.id).order('name');
+            if (error) throw error;
+            return data || [];
         },
         enabled: !!user,
     });
     
-    const { data: students, isLoading: isLoadingStudents } = useQuery({
-        queryKey: ['studentsOfClass', selectedClass],
+    const { data: studentsData, isLoading: isLoadingStudents } = useQuery({
+        queryKey: ['studentsForMassInput', selectedClass],
         queryFn: async (): Promise<StudentRow[]> => {
             if (!selectedClass) return [];
-            const { data, error } = await supabase.from('students').select('*').eq('class_id', selectedClass).order('name'); if (error) throw error; return data || [];
+            const { data, error } = await supabase.from('students').select('*').eq('class_id', selectedClass).order('name');
+            if (error) throw error;
+            return data || [];
         },
-        enabled: !!selectedClass,
+        enabled: !!selectedClass
     });
-
-    const filteredStudents = useMemo(() => {
-        if (!students) return [];
-        if (!searchTerm.trim()) return students;
-        return students.filter(student =>
-            student.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [students, searchTerm]);
     
-    useEffect(() => { setScores({}); setSelectedStudentIds(new Set()); setPasteData(''); setSearchTerm(''); }, [selectedClass, mode]);
-    useEffect(() => { if (classes && classes.length > 0 && !selectedClass) setSelectedClass(classes[0].id) }, [classes]);
+    const students = useMemo(() => {
+        if (!studentsData) return [];
+        if (!searchTerm) return studentsData;
+        return studentsData.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [studentsData, searchTerm]);
 
     const handleModeSelect = (selectedMode: InputMode) => { setMode(selectedMode); setStep(2); };
-    const handleBack = () => { setStep(1); setSelectedClass(classes?.[0]?.id || ''); };
+    const handleBack = () => { setStep(1); setMode(null); /* Reset states */ };
+    
+    useEffect(() => { // Reset dependent states on class change
+        setSelectedStudentIds(new Set());
+        setScores({});
+        setSearchTerm('');
+    }, [selectedClass]);
+    
+    const gradedCount = useMemo(() => Object.values(scores).filter(s => s.trim() !== '').length, [scores]);
+    const isAllSelected = useMemo(() => students && students.length > 0 && selectedStudentIds.size === students.length, [selectedStudentIds, students]);
+    const selectedViolation = useMemo(() => violationList.find(v => v.code === selectedViolationCode) || null, [selectedViolationCode]);
+
+    const handleSelectAllStudents = (checked: boolean) => {
+        if (checked) {
+            setSelectedStudentIds(new Set(students?.map(s => s.id)));
+        } else {
+            setSelectedStudentIds(new Set());
+        }
+    };
+
+    const handleStudentSelect = (studentId: string) => {
+        setSelectedStudentIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(studentId)) {
+                newSet.delete(studentId);
+            } else {
+                newSet.add(studentId);
+            }
+            return newSet;
+        });
+    };
+    
+    const { mutate: submitData, isPending: isSubmitting } = useMutation({
+        mutationFn: async () => {
+            if (!mode || !user) throw new Error("Mode or user not set");
+            
+            switch (mode) {
+                case 'quiz': {
+                    if (!quizInfo.name || !quizInfo.subject || selectedStudentIds.size === 0) throw new Error("Informasi aktivitas dan siswa harus diisi.");
+                    const records: Database['public']['Tables']['quiz_points']['Insert'][] = Array.from(selectedStudentIds).map(student_id => ({
+                        ...quizInfo, quiz_date: quizInfo.date, quiz_name: quizInfo.name, student_id, user_id: user.id, points: 1, max_points: 1
+                    }));
+                    const { error } = await supabase.from('quiz_points').insert(records);
+                    if (error) throw error;
+                    break;
+                }
+                case 'subject_grade': {
+                    if (!subjectGradeInfo.subject || gradedCount === 0) throw new Error("Mata pelajaran dan setidaknya satu nilai harus diisi.");
+                    const records: Database['public']['Tables']['academic_records']['Insert'][] = Object.entries(scores)
+                        .filter(([_, score]) => score.trim() !== '')
+                        .map(([student_id, score]) => ({ ...subjectGradeInfo, score: Number(score), student_id, user_id: user.id }));
+                    const { error } = await supabase.from('academic_records').insert(records);
+                    if (error) throw error;
+                    break;
+                }
+                case 'violation': {
+                    if (!selectedViolation || selectedStudentIds.size === 0) throw new Error("Jenis pelanggaran dan siswa harus dipilih.");
+                    const records: Database['public']['Tables']['violations']['Insert'][] = Array.from(selectedStudentIds).map(student_id => ({
+                        date: violationDate, description: selectedViolation.description, points: selectedViolation.points, student_id, user_id: user.id
+                    }));
+                    const { error } = await supabase.from('violations').insert(records);
+                    if (error) throw error;
+                    break;
+                }
+            }
+        },
+        onSuccess: () => { toast.success("Data berhasil disimpan!"); queryClient.invalidateQueries({ queryKey: ['studentDetails'] }); },
+        onError: (err: Error) => toast.error(`Gagal menyimpan: ${err.message}`),
+    });
 
     const handleAiParse = async () => {
-        if (!pasteData.trim() || !students || students.length === 0) {
-            toast.warning("Harap masukkan data untuk diproses dan pilih kelas.");
-            return;
-        }
-        setIsParsing(true); toast.info("AI sedang memproses data Anda...");
-        
+        if (!students || students.length === 0) { toast.warning("Pilih kelas dengan siswa terlebih dahulu."); return; }
+        if (!pasteData.trim()) { toast.warning("Tempelkan data nilai terlebih dahulu."); return; }
+        setIsParsing(true);
         try {
             const studentNames = students.map(s => s.name);
-            const systemInstruction = `Anda adalah asisten pemrosesan data. Baca teks yang berisi nama siswa dan nilai. Cocokkan nama dengan daftar siswa yang diberikan. Hasilnya harus berupa array JSON dari objek, di mana setiap objek berisi 'matched_name', 'score' numerik, dan 'original_line' dari input. Abaikan baris yang tidak dapat Anda cocokkan dengan nama siswa.`;
-            const prompt = `Daftar Siswa: ${JSON.stringify(studentNames)}\n\nTeks Data Nilai:\n"""\n${pasteData}\n"""\n\nProses teks di atas dan kembalikan array JSON.`;
+            const systemInstruction = `Anda adalah asisten entri data. Tugas Anda adalah mencocokkan nama dari teks yang diberikan dengan daftar nama siswa yang ada dan mengekstrak nilainya. Hanya cocokkan nama yang ada di daftar. Abaikan nama yang tidak ada di daftar. Format output harus JSON yang valid sesuai skema.`;
+            const prompt = `Daftar Siswa: ${JSON.stringify(studentNames)}\n\nTeks Nilai untuk Diproses:\n${pasteData}`;
+            const responseSchema = { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { studentName: { type: Type.STRING }, score: { type: Type.STRING } } } };
             
-            const responseSchema = {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        matched_name: { type: Type.STRING },
-                        score: { type: Type.NUMBER },
-                        original_line: { type: Type.STRING }
-                    },
-                    required: ["matched_name", "score", "original_line"]
-                }
-            };
-
-            const response = await ai.models.generateContent({ 
-                model: 'gemini-2.5-flash', 
-                contents: prompt, 
-                config: { systemInstruction, responseMimeType: "application/json", responseSchema } 
-            });
-            
-            const parsedScores: { matched_name: string; score: number; original_line: string }[] = JSON.parse(response.text);
-            const studentMapByName = new Map(students.map(s => [s.name, s.id]));
-            
-            const reviewList: ReviewDataItem[] = [];
-            parsedScores.forEach(item => {
-                const studentId = studentMapByName.get(item.matched_name);
-                if (studentId) {
-                    reviewList.push({ studentId, studentName: item.matched_name, score: String(item.score), originalLine: item.original_line });
-                }
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { systemInstruction, responseMimeType: "application/json", responseSchema }
             });
 
-            if (reviewList.length === 0) {
-                toast.warning("AI tidak dapat menemukan siswa yang cocok dari data yang Anda berikan.");
-            } else {
-                setReviewData(reviewList);
-            }
+            const parsedResults = JSON.parse(response.text.trim()) as ReviewDataItem[];
             
+            const newScores: Record<string, string> = {};
+            let matchedCount = 0;
+            parsedResults.forEach(item => {
+                const student = students.find(s => s.name.toLowerCase() === item.studentName.toLowerCase());
+                if (student) {
+                    newScores[student.id] = String(item.score);
+                    matchedCount++;
+                }
+            });
+            setScores(prev => ({...prev, ...newScores}));
+            toast.success(`${matchedCount} dari ${parsedResults.length} nilai berhasil dicocokkan dan diisi.`);
         } catch (error) {
-            console.error(error);
-            toast.error("Gagal memproses data dengan AI. Pastikan format data Anda benar.");
+            console.error("AI Parsing Error:", error);
+            toast.error("Gagal memproses data. Pastikan format teks benar.");
         } finally {
             setIsParsing(false);
         }
     };
     
-    const selectedViolation = useMemo(() => violationList.find(v => v.code === selectedViolationCode) || null, [selectedViolationCode]);
-    const handleSelectAllStudents = (checked: boolean) => setSelectedStudentIds(new Set(checked ? filteredStudents?.map(s => s.id) : []));
-    const handleStudentSelect = (studentId: string) => setSelectedStudentIds(prev => { const newSet = new Set(prev); newSet.has(studentId) ? newSet.delete(studentId) : newSet.add(studentId); return newSet; });
-    const isAllSelected = filteredStudents ? selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 : false;
+    const fetchReportDataForStudent = async (studentId: string, userId: string): Promise<ReportDataType> => {
+        const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', userId).single();
+        if (studentRes.error) throw new Error(studentRes.error.message);
+        
+        const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classRes] = await Promise.all([
+            supabase.from('reports').select('*').eq('student_id', studentId),
+            supabase.from('attendance').select('*').eq('student_id', studentId),
+            supabase.from('academic_records').select('*').eq('student_id', studentId),
+            supabase.from('violations').select('*').eq('student_id', studentId),
+            supabase.from('quiz_points').select('*').eq('student_id', studentId),
+            supabase.from('classes').select('id, name').eq('id', studentRes.data.class_id).single()
+        ]);
+        const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classRes].map(r => r.error).filter(Boolean);
+        if (errors.length > 0) throw new Error(errors.map(e => e!.message).join(', '));
+        
+        const studentWithClass = { ...studentRes.data, classes: classRes.data ? { id: classRes.data.id, name: classRes.data.name } : null };
+        
+        return { student: studentWithClass, reports: reportsRes.data || [], attendanceRecords: attendanceRes.data || [], academicRecords: academicRes.data || [], violations: violationsRes.data || [], quizPoints: quizPointsRes.data || [] };
+    };
+
+    const handlePrintBulkReports = async () => {
+        if (selectedStudentIds.size === 0) {
+            toast.warning("Pilih setidaknya satu siswa untuk mencetak rapor.");
+            return;
+        }
+        setIsExporting(true);
+        setExportProgress("0%");
+        toast.info(`Mulai proses cetak ${selectedStudentIds.size} rapor...`);
     
-    // Mutations
-    const saveQuizScoresMutation = useMutation({
-        mutationFn: async (records: Database['public']['Tables']['quiz_points']['Insert'][]) => { const { error } = await supabase.from('quiz_points').insert(records as any); if (error) throw error; },
-        onSuccess: () => { toast.success("Poin keaktifan berhasil disimpan!"); setSelectedStudentIds(new Set()); },
-        onError: (error: Error) => toast.error(`Gagal: ${error.message}`),
-    });
-    const saveSubjectGradesMutation = useMutation({
-        mutationFn: async (records: Database['public']['Tables']['academic_records']['Insert'][]) => { const { error } = await supabase.from('academic_records').insert(records as any); if (error) throw error; },
-        onSuccess: () => { toast.success("Nilai mata pelajaran berhasil disimpan!"); setScores({}); queryClient.invalidateQueries({ queryKey: ['studentDetails'] }); },
-        onError: (error: Error) => toast.error(`Gagal: ${error.message}`),
-    });
-    const saveViolationsMutation = useMutation({
-        mutationFn: async (records: Database['public']['Tables']['violations']['Insert'][]) => { const { error } = await supabase.from('violations').insert(records as any); if (error) throw error; },
-        onSuccess: () => { toast.success("Pelanggaran berhasil disimpan!"); setSelectedStudentIds(new Set()); queryClient.invalidateQueries({ queryKey: ['studentDetails'] }); },
-        onError: (error: Error) => toast.error(`Gagal: ${error.message}`),
-    });
+        const studentsToPrint = (students || []).filter(s => selectedStudentIds.has(s.id));
     
-    const handleSubmit = () => {
-        if (!user || !students) return;
-        if (mode === 'quiz') {
-            if (!quizInfo.name || !quizInfo.subject) { toast.warning("Harap isi Nama Aktivitas dan Mata Pelajaran."); return; }
-            if (selectedStudentIds.size === 0) { toast.warning("Pilih minimal satu siswa."); return; }
-            const records = Array.from(selectedStudentIds).map(studentId => ({ student_id: studentId, user_id: user.id, quiz_name: quizInfo.name, subject: quizInfo.subject, points: 1, max_points: 1, quiz_date: quizInfo.date, }));
-            saveQuizScoresMutation.mutate(records);
-        } else if (mode === 'subject_grade') {
-            if (!subjectGradeInfo.subject) { toast.warning("Harap isi Mata Pelajaran."); return; }
-            const records = students.filter(student => scores[student.id]?.trim()).map(student => ({ student_id: student.id, user_id: user.id, subject: subjectGradeInfo.subject, score: Number(scores[student.id]), notes: subjectGradeInfo.notes || 'Nilai dari input massal.' }));
-            if (records.length === 0) { toast.warning("Tidak ada nilai yang diisi."); return; }
-            saveSubjectGradesMutation.mutate(records);
-        } else if (mode === 'violation') {
-            if (!selectedViolation) { toast.warning("Harap pilih jenis pelanggaran."); return; }
-            if (selectedStudentIds.size === 0) { toast.warning("Pilih minimal satu siswa."); return; }
-            const records = Array.from(selectedStudentIds).map(studentId => ({ student_id: studentId, user_id: user.id, date: violationDate, description: selectedViolation.description, points: selectedViolation.points }));
-            saveViolationsMutation.mutate(records);
+        try {
+            // 1. Fetch all data in parallel
+            setExportProgress("10%");
+            toast.info("Mengambil data siswa...");
+            const allReportData = await Promise.all(
+                studentsToPrint.map(student => fetchReportDataForStudent(student.id, user!.id))
+            );
+    
+            setExportProgress("40%");
+            toast.info("Membuat catatan guru...");
+    
+            let teacherNotesMap: Map<string, string>;
+    
+            if (noteMethod === 'template') {
+                teacherNotesMap = new Map(
+                    allReportData.map(data => [
+                        data.student.id,
+                        templateNote.replace(/\[Nama Siswa\]/g, data.student.name)
+                    ])
+                );
+            } else {
+                // Batch AI Note Generation
+                const studentDataForPrompt = allReportData.map(data => {
+                    const academicSummary = data.academicRecords.length > 0
+                        ? `Nilai rata-rata: ${Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)}. Pelajaran terbaik: ${[...data.academicRecords].sort((a, b) => b.score - a.score)[0]?.subject || 'N/A'}.`
+                        : 'Belum ada data nilai.';
+    
+                    const behaviorSummary = data.violations.length > 0
+                        ? `${data.violations.length} pelanggaran dengan total ${data.violations.reduce((sum, v) => sum + v.points, 0)} poin.`
+                        : 'Perilaku baik, tidak ada pelanggaran.';
+                    
+                    const attendanceSummary = `Sakit: ${data.attendanceRecords.filter(r=>r.status === 'Sakit').length}, Izin: ${data.attendanceRecords.filter(r=>r.status === 'Izin').length}, Alpha: ${data.attendanceRecords.filter(r=>r.status === 'Alpha').length}.`;
+    
+                    return { studentId: data.student.id, studentName: data.student.name, academicSummary, behaviorSummary, attendanceSummary };
+                });
+    
+                const systemInstruction = `Anda adalah seorang guru wali kelas yang bijaksana dan suportif. Tugas Anda adalah menulis paragraf "Catatan Wali Kelas" untuk setiap siswa berdasarkan data yang diberikan. Catatan harus holistik, memotivasi, dan dalam satu paragraf (3-5 kalimat). Jawab dalam format JSON array yang diminta.`;
+                const prompt = `Buatkan "Catatan Wali Kelas" untuk setiap siswa dalam daftar JSON berikut. Data Siswa: ${JSON.stringify(studentDataForPrompt)}`;
+                const responseSchema = { type: Type.OBJECT, properties: { notes: { type: Type.ARRAY, description: "Array of teacher notes for each student.", items: { type: Type.OBJECT, properties: { studentId: { type: Type.STRING, description: "The student's unique ID." }, teacherNote: { type: Type.STRING, description: "The generated teacher's note for the student's report card." } }, required: ["studentId", "teacherNote"] } } }, required: ["notes"] };
+                
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash', contents: prompt,
+                    config: { systemInstruction, responseMimeType: "application/json", responseSchema }
+                });
+    
+                const parsedResponse = JSON.parse(response.text);
+                const parsedNotes = parsedResponse.notes as { studentId: string; teacherNote: string }[];
+                teacherNotesMap = new Map(parsedNotes.map(item => [item.studentId, item.teacherNote.replace(/\\n/g, ' ')]));
+            }
+    
+            setExportProgress("70%");
+            toast.info("Menyusun file PDF...");
+    
+            // 3. Generate PDF
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            let isFirstPage = true;
+    
+            for (let i = 0; i < allReportData.length; i++) {
+                const reportData = allReportData[i];
+                const teacherNote = teacherNotesMap.get(reportData.student.id) || "Catatan tidak dapat dibuat.";
+                
+                if (!isFirstPage) doc.addPage();
+                isFirstPage = false;
+                
+                generateStudentReport(doc, reportData, teacherNote, user);
+    
+                const progress = `${Math.round(70 + ((i + 1) / studentsToPrint.length) * 30)}%`;
+                setExportProgress(progress);
+            }
+    
+            doc.save(`Rapor_Massal_${classes?.find(c => c.id === selectedClass)?.name || 'Kelas'}.pdf`);
+            toast.success("Semua rapor terpilih berhasil digabung dalam satu PDF!");
+    
+        } catch (err) {
+            console.error("Gagal membuat rapor massal:", err);
+            toast.error(`Gagal membuat rapor massal: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setIsExporting(false);
         }
     };
-    const gradedCount = useMemo(() => {
-        if (!students) return 0;
-        return students.filter(student => scores[student.id]?.trim()).length;
-    }, [scores, students]);
-
-    const isSubmitting = saveQuizScoresMutation.isPending || saveSubjectGradesMutation.isPending || saveViolationsMutation.isPending;
     
-    const handlePrintBulkReports = async () => {
-        // This function is complex and would be implemented here, similar to the one in ReportPage but in a loop.
-        // For brevity, we'll just show the state management.
-        toast.info("Fitur ini sedang dalam pengembangan.");
+
+    const handlePrintGrades = async () => {
+        if (!selectedClass || !subjectGradeInfo.subject) { toast.warning("Pilih kelas dan masukkan nama mata pelajaran."); return; }
+        if (selectedStudentIds.size === 0) { toast.warning("Pilih setidaknya satu siswa untuk mencetak."); return; }
+        setIsExporting(true);
+        toast.info("Membuat rekap nilai...");
+    
+        const doc = new jsPDF();
+        const className = classes?.find(c => c.id === selectedClass)?.name;
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Rekap Nilai - ${subjectGradeInfo.subject}`, 14, 22);
+        doc.setFontSize(12);
+        doc.text(`Kelas: ${className}`, 14, 30);
+        doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 36);
+        
+        const tableData = (students || [])
+            .filter(s => selectedStudentIds.has(s.id))
+            .map((s, index) => [
+                index + 1,
+                s.name,
+                scores[s.id] || 'N/A'
+            ]);
+        
+        autoTable(doc, {
+            startY: 45,
+            head: [['No', 'Nama Siswa', 'Nilai']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: '#4f46e5' },
+        });
+
+        doc.save(`Nilai_${subjectGradeInfo.subject.replace(/\s/g, '_')}_${className}.pdf`);
+        toast.success("Rekap nilai berhasil diunduh.");
+        setIsExporting(false);
     };
 
-    const handleConfirmReview = (reviewedScores: Record<string, string>) => {
-        setScores(prev => ({ ...prev, ...reviewedScores }));
-        setReviewData(null);
-        toast.success(`${Object.keys(reviewedScores).length} nilai telah diterapkan. Anda dapat menyimpan sekarang.`);
-    };
 
+    if (step === 1) {
+        return (
+            <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex items-center justify-center">
+                <Step1_ModeSelection handleModeSelect={handleModeSelect} />
+            </div>
+        );
+    }
+    
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col items-center justify-center">
-             <div className="holographic-orb-container" style={{ top: '-40px', left: '10%', width: '120px', height: '120px', opacity: 0.7 }}>
-                <div className="holographic-orb"><div className="orb-glow"></div><div className="orb-core"></div><div className="orb-ring orb-ring-1"></div><div className="orb-ring orb-ring-2"></div></div>
-            </div>
-             <div className="holographic-orb-container" style={{ top: '50%', right: '5%', width: '150px', height: '150px', opacity: 0.5, animationDelay: '2s' }}>
-                <div className="holographic-orb"><div className="orb-glow"></div><div className="orb-core"></div><div className="orb-ring orb-ring-1"></div><div className="orb-ring orb-ring-2"></div></div>
-            </div>
-
-            <main className="relative z-10 w-full max-w-6xl">
-                {step === 1 ? (
-                    <Step1_ModeSelection handleModeSelect={handleModeSelect} />
-                ) : (
-                    <Step2_ConfigurationAndInput 
-                        mode={mode}
-                        handleBack={handleBack}
-                        classes={classes}
-                        selectedClass={selectedClass}
-                        setSelectedClass={setSelectedClass}
-                        isLoadingClasses={isLoadingClasses}
-                        quizInfo={quizInfo}
-                        setQuizInfo={setQuizInfo}
-                        subjectGradeInfo={subjectGradeInfo}
-                        setSubjectGradeInfo={setSubjectGradeInfo}
-                        scores={scores}
-                        setScores={setScores}
-                        pasteData={pasteData}
-                        setPasteData={setPasteData}
-                        handleAiParse={handleAiParse}
-                        isParsing={isParsing}
-                        selectedViolationCode={selectedViolationCode}
-                        setSelectedViolationCode={setSelectedViolationCode}
-                        violationDate={violationDate}
-                        setViolationDate={setViolationDate}
-                        selectedViolation={selectedViolation}
-                        students={filteredStudents}
-                        isLoadingStudents={isLoadingStudents}
-                        selectedStudentIds={selectedStudentIds}
-                        handleSelectAllStudents={handleSelectAllStudents}
-                        handleStudentSelect={handleStudentSelect}
-                        isAllSelected={isAllSelected}
-                        isExporting={isExporting}
-                        exportProgress={exportProgress}
-                        handlePrintBulkReports={handlePrintBulkReports}
-                        handleSubmit={handleSubmit}
-                        isSubmitting={isSubmitting}
-                        isOnline={isOnline}
-                        gradedCount={gradedCount}
-                        searchTerm={searchTerm}
-                        setSearchTerm={setSearchTerm}
-                    />
-                )}
-            </main>
-
-            {reviewData && (
-                <ReviewModal
-                    data={reviewData}
-                    onConfirm={handleConfirmReview}
-                    onCancel={() => setReviewData(null)}
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8">
+            {mode && (
+                <Step2_ConfigurationAndInput
+                    mode={mode}
+                    handleBack={handleBack}
+                    classes={classes}
+                    selectedClass={selectedClass}
+                    setSelectedClass={setSelectedClass}
+                    isLoadingClasses={isLoadingClasses}
+                    quizInfo={quizInfo}
+                    setQuizInfo={setQuizInfo}
+                    subjectGradeInfo={subjectGradeInfo}
+                    setSubjectGradeInfo={setSubjectGradeInfo}
+                    scores={scores}
+                    setScores={setScores}
+                    pasteData={pasteData}
+                    setPasteData={setPasteData}
+                    handleAiParse={handleAiParse}
+                    isParsing={isParsing}
+                    selectedViolationCode={selectedViolationCode}
+                    setSelectedViolationCode={setSelectedViolationCode}
+                    violationDate={violationDate}
+                    setViolationDate={setViolationDate}
+                    selectedViolation={selectedViolation}
+                    students={students}
+                    isLoadingStudents={isLoadingStudents}
+                    selectedStudentIds={selectedStudentIds}
+                    handleSelectAllStudents={handleSelectAllStudents}
+                    handleStudentSelect={handleStudentSelect}
+                    isAllSelected={isAllSelected}
+                    isExporting={isExporting}
+                    exportProgress={exportProgress}
+                    handlePrintBulkReports={handlePrintBulkReports}
+                    handlePrintGrades={handlePrintGrades}
+                    handleSubmit={submitData}
+                    isSubmitting={isSubmitting}
+                    isOnline={isOnline}
+                    gradedCount={gradedCount}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    noteMethod={noteMethod}
+                    setNoteMethod={setNoteMethod}
+                    templateNote={templateNote}
+                    setTemplateNote={setTemplateNote}
                 />
             )}
         </div>
     );
 };
-
-const ReviewModal: React.FC<{ data: ReviewDataItem[], onConfirm: (scores: Record<string, string>) => void, onCancel: () => void }> = ({ data, onConfirm, onCancel }) => {
-    const [editedScores, setEditedScores] = useState<Record<string, string>>(() => {
-        return data.reduce((acc, item) => {
-            acc[item.studentId] = item.score;
-            return acc;
-        }, {} as Record<string, string>);
-    });
-
-    const handleScoreChange = (studentId: string, score: string) => {
-        setEditedScores(prev => ({ ...prev, [studentId]: score }));
-    };
-
-    const handleConfirm = () => {
-        onConfirm(editedScores);
-    };
-    
-    return (
-        <Modal title="Tinjau Hasil AI" isOpen={true} onClose={onCancel} icon={<PencilIcon />}>
-            <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">AI telah memproses data Anda. Silakan tinjau dan perbaiki nilai jika perlu sebelum menerapkannya.</p>
-                <div className="max-h-80 overflow-y-auto pr-2 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg">
-                    <table className="w-full text-sm">
-                        <thead className="text-left text-gray-500 dark:text-gray-400">
-                            <tr>
-                                <th className="p-2">Siswa & Data Asli</th>
-                                <th className="p-2 w-28 text-center">Nilai</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map(item => {
-                                const scoreNum = Number(editedScores[item.studentId]);
-                                const isInvalidScore = scoreNum < 0 || scoreNum > 100;
-                                return (
-                                    <tr key={item.studentId} className="border-t border-gray-200 dark:border-gray-700">
-                                        <td className="p-2">
-                                            <p className="font-medium text-gray-800 dark:text-gray-200">{item.studentName}</p>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 font-mono truncate">"{item.originalLine}"</p>
-                                        </td>
-                                        <td className="p-2">
-                                            <Input 
-                                                type="number" 
-                                                min="0" 
-                                                max="100" 
-                                                value={editedScores[item.studentId] || ''} 
-                                                onChange={(e) => handleScoreChange(item.studentId, e.target.value)}
-                                                className={isInvalidScore ? 'border-red-500 ring-2 ring-red-500/50' : ''}
-                                            />
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                 <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="ghost" onClick={onCancel}>Batal</Button>
-                    <Button type="button" onClick={handleConfirm}>Terapkan Nilai</Button>
-                </div>
-            </div>
-        </Modal>
-    )
-};
-
 
 export default MassInputPage;
