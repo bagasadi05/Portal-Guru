@@ -5,7 +5,6 @@ const QUEUE_KEY = 'supabase-offline-queue';
 
 export type QueuedMutation = {
     id: string; // timestamp + random
-    // FIX: Use a more specific type for table names to ensure type safety.
     table: keyof Database['public']['Tables'];
     operation: 'upsert' | 'insert' | 'update' | 'delete';
     payload: any;

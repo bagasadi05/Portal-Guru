@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '../ui/Card';
-// FIX: Use named imports for react-router-dom hooks and components
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarIcon, UsersIcon, BookOpenIcon, ClockIcon, SparklesIcon, BrainCircuitIcon, CheckSquareIcon, AlertTriangleIcon, CheckCircleIcon } from '../Icons';
 import { Button } from '../ui/Button';
@@ -47,7 +46,6 @@ const fetchDashboardData = async (userId: string): Promise<DashboardQueryData> =
     ] = await Promise.all([
         supabase.from('students').select('id, name').eq('user_id', userId),
         supabase.from('tasks').select('*').eq('user_id', userId).neq('status', 'done').order('due_date'),
-        // FIX: Cast `todayDay` to the correct enum type to resolve the TypeScript error.
         supabase.from('schedules').select('*').eq('user_id', userId).eq('day', todayDay as Database['public']['Tables']['schedules']['Row']['day']).order('start_time'),
         supabase.from('classes').select('id, name').eq('user_id', userId),
         supabase.from('attendance').select('status', { count: 'exact' }).eq('user_id', userId).eq('date', today),
@@ -125,7 +123,6 @@ const AiDashboardInsight: React.FC<{ dashboardData: DashboardQueryData | null }>
                     <div><p className="font-bold text-gray-900 dark:text-gray-200">Siswa Berprestasi</p>
                         {insight.positive_highlights.map(item => (
                             <p key={item.student_name} className="text-gray-600 dark:text-gray-400">
-                                {/* FIX: Use Link component directly */}
                                 <Link to={`/siswa/${item.student_id}`} className="font-semibold text-green-600 dark:text-green-400 hover:underline">{item.student_name}</Link>: {item.reason}
                             </p>
                         ))}
@@ -138,7 +135,6 @@ const AiDashboardInsight: React.FC<{ dashboardData: DashboardQueryData | null }>
                     <div><p className="font-bold text-gray-900 dark:text-gray-200">Perlu Perhatian</p>
                          {insight.areas_for_attention.map(item => (
                             <p key={item.student_name} className="text-gray-600 dark:text-gray-400">
-                                {/* FIX: Use Link component directly */}
                                 <Link to={`/siswa/${item.student_id}`} className="font-semibold text-yellow-600 dark:text-yellow-400 hover:underline">{item.student_name}</Link>: {item.reason}
                             </p>
                         ))}
@@ -224,7 +220,6 @@ const WeeklyAttendanceChart: React.FC<{ data: WeeklyAttendance[] }> = ({ data })
 
 const DashboardPage: React.FC = () => {
     const { user } = useAuth();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -263,7 +258,6 @@ const DashboardPage: React.FC = () => {
                 <div className="xl:col-span-3 space-y-8">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {stats.map(stat => (
-                            // FIX: Use Link component directly
                             <Link to={stat.link} key={stat.label} className="group block">
                                 <Card className="p-5 flex items-center gap-5 bg-white dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-800/70 group-hover:bg-gray-50 dark:group-hover:bg-gray-800/90 group-hover:border-gray-300 dark:group-hover:border-purple-400/50 group-hover:-translate-y-1 dark:holographic-shine-hover overflow-hidden relative">
                                     <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>

@@ -10,7 +10,6 @@ import { Button } from '../ui/Button';
 import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon } from '../Icons';
 import { Input } from '../ui/Input';
 
-// FIX: Define local types based on the RPC function's return schema to resolve type mismatches.
 type PortalRpcResult = Database['public']['Functions']['get_student_portal_data']['Returns'][number];
 type PortalStudentInfo = PortalRpcResult['student'];
 type PortalReport = PortalRpcResult['reports'][number];
@@ -21,7 +20,6 @@ type PortalQuizPoint = PortalRpcResult['quizPoints'][number];
 type PortalCommunication = PortalRpcResult['communications'][number];
 type TeacherInfo = PortalRpcResult['teacher'];
 
-// FIX: Update PortalData to use the new, accurate RPC-based types.
 type PortalData = {
     student: PortalStudentInfo & { classes: { name: string }, access_code: string | null },
     reports: PortalReport[],
@@ -51,7 +49,6 @@ const fetchPortalData = async (studentId: string, accessCode: string): Promise<P
 
     const portalResult = data[0];
     
-    // FIX: Assemble the data structure, which now aligns with the `PortalData` type without causing errors.
     return {
         student: { ...portalResult.student, access_code: accessCode },
         reports: portalResult.reports || [],
@@ -92,7 +89,6 @@ const getScoreColorClasses = (score: number) => {
     return { bg: 'bg-red-900/30', border: 'border-red-600', scoreBg: 'bg-red-500' };
 };
 
-// FIX: Update component props to use the correct RPC-based type.
 const GradesList: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) => {
   if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><GraduationCapIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Data Nilai</h4><p>Belum ada nilai yang diinput oleh guru.</p></div>;
   const sortedRecords = [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -121,7 +117,6 @@ const GradesList: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) 
   );
 };
 
-// FIX: Update component props to use the correct RPC-based type.
 const QuizzesList: React.FC<{ records: PortalQuizPoint[] }> = ({ records }) => {
   if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><SparklesIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Poin Keaktifan</h4><p>Belum ada poin keaktifan yang dicatat.</p></div>;
   const sortedRecords = [...records].sort((a, b) => new Date(b.quiz_date).getTime() - new Date(a.quiz_date).getTime());
@@ -394,5 +389,4 @@ const ParentPortalPage: React.FC = () => {
     );
 };
 
-// FIX: Add default export statement.
 export default ParentPortalPage;

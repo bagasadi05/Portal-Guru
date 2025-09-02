@@ -1,6 +1,5 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-// FIX: Use named imports for react-router-dom components
 import { Link } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -151,7 +150,6 @@ const StudentsPage: React.FC = () => {
     const { mutate: generateBulkCodes, isPending: isGeneratingBulkCodes } = useMutation({
         mutationFn: async (classId: string) => {
             const studentsInClass = students.filter(s => s.class_id === classId);
-            // FIX: Ensure the payload for upsert includes all required fields to satisfy the `Insert` type, even for an update operation.
             const studentsToUpdate = studentsInClass.filter(s => !s.access_code).map(s => ({
                 id: s.id,
                 name: s.name,
@@ -296,7 +294,6 @@ const StudentsPage: React.FC = () => {
                                     {studentsForActiveClass.map(student => (
                                         <Card key={student.id} className="group relative p-6 h-full transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-sky-500/50 dark:hover:border-purple-500/50">
                                             <div className="flex flex-col items-center text-center">
-                                                {/* FIX: Use Link component directly */}
                                                 <Link to={`/siswa/${student.id}`} className="block">
                                                     <img src={student.avatar_url} alt={student.name} className="w-28 h-28 rounded-full mb-4 object-cover border-4 border-gray-200 dark:border-white/10 group-hover:border-purple-400 transition-colors mx-auto" />
                                                     <h3 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-purple-300">{student.name}</h3>
@@ -320,7 +317,6 @@ const StudentsPage: React.FC = () => {
                                                 {studentsForActiveClass.map(student => (
                                                     <tr key={student.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-white/5">
                                                         <th scope="row" className="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                                                            {/* FIX: Use Link component directly */}
                                                             <Link to={`/siswa/${student.id}`} className="flex items-center gap-3 group">
                                                                 <img src={student.avatar_url} alt={student.name} className="w-9 h-9 rounded-full object-cover" />
                                                                 <span className="group-hover:text-sky-600 dark:group-hover:text-purple-300">{student.name}</span>

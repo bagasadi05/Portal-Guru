@@ -1,6 +1,5 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-// FIX: Use named imports for react-router-dom hooks
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -39,7 +38,6 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const fetchReportData = async (studentId: string | undefined, userId: string): Promise<ReportData> => {
     if (!studentId) throw new Error("Student ID is required.");
     
-    // FIX: Fetch student data without the direct join, which was causing an error.
     const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', userId).single();
     if (studentRes.error) throw new Error(studentRes.error.message);
     
@@ -49,7 +47,6 @@ const fetchReportData = async (studentId: string | undefined, userId: string): P
         supabase.from('academic_records').select('*').eq('student_id', studentId),
         supabase.from('violations').select('*').eq('student_id', studentId),
         supabase.from('quiz_points').select('*').eq('student_id', studentId),
-        // FIX: Fetch the class separately.
         supabase.from('classes').select('id, name').eq('id', studentRes.data.class_id).single(),
     ]);
 
@@ -57,7 +54,6 @@ const fetchReportData = async (studentId: string | undefined, userId: string): P
         throw new Error('Failed to fetch one or more report data components.');
     }
 
-    // FIX: Manually combine student and class data to match the expected `StudentWithClass` type.
     const studentWithClass: StudentWithClass = {
         ...studentRes.data,
         classes: classRes.data ? { id: classRes.data.id, name: classRes.data.name } : null
@@ -102,9 +98,7 @@ const EditableCell: React.FC<{ value: string | number, onChange: (value: string 
 };
 
 const ReportPage: React.FC = () => {
-    // FIX: Use useParams hook directly
     const { studentId } = useParams<{ studentId: string }>();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const { user } = useAuth();
     const toast = useToast();

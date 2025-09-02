@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-// FIX: Use named imports for react-router-dom hooks and components
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -43,7 +42,6 @@ const fetchGlobalSearchData = async (userId: string) => {
 
 const GlobalSearch: React.FC<{ isOpen: boolean; setIsOpen: (isOpen: boolean) => void }> = ({ isOpen, setIsOpen }) => {
     const { user } = useAuth();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
@@ -164,7 +162,6 @@ const GlobalSearch: React.FC<{ isOpen: boolean; setIsOpen: (isOpen: boolean) => 
                                 const subtitle = item.type === 'Kelas' ? `${item.studentCount} siswa` : item.type;
                                 
                                 return (
-                                    // FIX: Use Link component directly
                                     <Link 
                                       to={item.path} 
                                       key={`${item.type}-${item.id}`} 

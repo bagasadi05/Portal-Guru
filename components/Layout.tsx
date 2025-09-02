@@ -1,6 +1,5 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// FIX: Use named imports for react-router-dom hooks and components
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { HomeIcon, UsersIcon, CalendarIcon, ClipboardIcon, LogoutIcon, SettingsIcon, GraduationCapIcon, SearchIcon, CheckSquareIcon, BrainCircuitIcon, ClipboardPenIcon, DownloadCloudIcon } from './Icons';
@@ -25,7 +24,6 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
@@ -63,7 +61,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
 
             <nav className="flex-1 space-y-2">
                 {navItems.map((item) => (
-                    // FIX: Use NavLink component directly
                     <NavLink
                         key={item.href}
                         to={item.href}
@@ -96,7 +93,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
 
 const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> = ({ onMenuClick, onSearchClick }) => {
     const { user, logout } = useAuth();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -174,7 +170,6 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                                 </div>
                                 <div className="py-1 mt-1">
-                                    {/* FIX: Use Link component directly */}
                                     <Link to="/pengaturan" onClick={() => setProfileMenuOpen(false)} className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50">
                                         <SettingsIcon className="w-4 h-4 mr-3" />
                                         <span>Pengaturan</span>

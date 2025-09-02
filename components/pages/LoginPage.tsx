@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-// FIX: Use named imports for react-router-dom hooks and components
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase';
@@ -11,7 +10,6 @@ import { Input } from '../ui/Input';
 import { MailIcon, LockIcon, UserCircleIcon, EyeIcon, EyeOffIcon } from '../Icons';
 
 const LoginPage: React.FC = () => {
-  // FIX: Use useNavigate hook directly
   const navigate = useNavigate();
   const { login, signup, session } = useAuth();
   const toast = useToast();
@@ -122,7 +120,6 @@ const LoginPage: React.FC = () => {
                 </div>
                 
                 <div className="text-center mt-6 border-t border-gray-200 dark:border-white/10 pt-4">
-                     {/* FIX: Use Link component directly */}
                      <Link to="/" className="form-links a">
                         Kembali ke pemilihan peran
                     </Link>

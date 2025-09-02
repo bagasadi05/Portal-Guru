@@ -1,6 +1,5 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-// FIX: Use named imports for react-router-dom hooks and components
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AttendanceStatus } from '../../types';
 import { useToast } from '../../hooks/useToast';
@@ -272,11 +271,8 @@ const generateAccessCode = (): string => {
 };
 
 const StudentDetailPage = () => {
-    // FIX: Use useParams hook directly
     const { studentId } = useParams<{ studentId: string }>();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
-    // FIX: Use useLocation hook directly
     const location = useLocation();
     const { user } = useAuth();
     const isOnline = useOfflineStatus();
@@ -300,7 +296,6 @@ const StudentDetailPage = () => {
         queryKey: ['studentDetails', studentId],
         queryFn: async () => {
             if (!studentId || !user) throw new Error("User or Student ID not found");
-            // FIX: Removed the failing direct join 'classes(id, name)'
             const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', user.id).single();
             if (studentRes.error) throw new Error(studentRes.error.message);
             
@@ -318,7 +313,6 @@ const StudentDetailPage = () => {
             const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classesRes, commsRes].map(r => r.error).filter(Boolean);
             if (errors.length > 0) throw new Error(errors.map(e => e!.message).join(', '));
             
-            // FIX: Manually join student with class info after fetching separately.
             const studentData = studentRes.data;
             const classInfo = (classesRes.data || []).find(c => c.id === studentData.class_id);
             const studentWithClass = { ...studentData, classes: classInfo ? { id: classInfo.id, name: classInfo.name } : null };
@@ -410,7 +404,6 @@ const StudentDetailPage = () => {
     });
     
     const deleteMutation = useMutation({
-        // FIX: Provide a stricter type for `table` to ensure it's a valid table name from the database schema.
         mutationFn: async ({ table, id }: { table: keyof Database['public']['Tables'], id: string | number }) => {
             const { error } = await supabase.from(table).delete().eq('id', id);
             if (error) throw error;
@@ -635,7 +628,6 @@ const StudentDetailPage = () => {
                     </div>
                     <div className="flex items-center gap-2 self-start md:self-center">
                         <Button variant="outline" onClick={() => setModalState({ type: 'editStudent', data: student })} disabled={!isOnline} className="bg-white/10 border-white/20 hover:bg-white/20 text-white"><UserCircleIcon className="w-4 h-4 mr-2" />Edit Profil</Button>
-                        {/* FIX: Use Link component directly */}
                         <Link to={`/cetak-rapot/${studentId}`}><Button><FileTextIcon className="w-4 h-4 mr-2" />Cetak Rapor</Button></Link>
                     </div>
                 </header>

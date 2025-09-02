@@ -1,7 +1,6 @@
 
 
 import React, { useState, useMemo, useEffect } from 'react';
-// FIX: Use named imports for react-router-dom hooks
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -181,9 +180,7 @@ const TasksPage: React.FC = () => {
     const queryClient = useQueryClient();
     const toast = useToast();
     const isOnline = useOfflineStatus();
-    // FIX: Use useLocation hook directly
     const location = useLocation();
-    // FIX: Use useNavigate hook directly
     const navigate = useNavigate();
     
     const [modalState, setModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: Task | null }>({ isOpen: false, mode: 'add', data: null });

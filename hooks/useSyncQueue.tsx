@@ -33,7 +33,6 @@ export const useSyncQueue = () => {
 
         const promises = queue.map(async (mutation: QueuedMutation) => {
             const { table, operation, payload, onConflict } = mutation;
-            // FIX: The `table` variable is now correctly typed from QueuedMutation, resolving the error.
             let query = supabase.from(table);
             
             switch(operation) {
