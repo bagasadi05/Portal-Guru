@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -119,6 +121,7 @@ interface Step2Props {
     setNoteMethod: React.Dispatch<React.SetStateAction<'ai' | 'template'>>;
     templateNote: string;
     setTemplateNote: React.Dispatch<React.SetStateAction<string>>;
+    uniqueSubjects: string[] | undefined;
 }
 
 const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
@@ -129,7 +132,8 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
     students, isLoadingStudents, selectedStudentIds, handleSelectAllStudents,
     handleStudentSelect, isAllSelected, isExporting, exportProgress,
     handlePrintBulkReports, handlePrintGrades, handleSubmit, isSubmitting, isOnline, gradedCount,
-    searchTerm, setSearchTerm, noteMethod, setNoteMethod, templateNote, setTemplateNote
+    searchTerm, setSearchTerm, noteMethod, setNoteMethod, templateNote, setTemplateNote,
+    uniqueSubjects
 }) => {
     const currentAction = actionCards.find(c => c.mode === mode)!;
 
@@ -202,7 +206,20 @@ const Step2_ConfigurationAndInput: React.FC<Step2Props> = ({
                         <div className="lg:col-span-2"><label className="block text-sm font-medium mb-1 text-gray-200">Catatan (Opsional)</label><Input name="notes" value={subjectGradeInfo.notes} onChange={e => handleInfoChange(setSubjectGradeInfo, e)} placeholder="cth. Penilaian Akhir Semester" className={inputStyles}/></div>
                     </>}
                      {mode === 'academic_print' && <>
-                        <div className="lg:col-span-3"><label className="block text-sm font-medium mb-1 text-gray-200">Mata Pelajaran</label><Input name="subject" value={subjectGradeInfo.subject} onChange={e => handleInfoChange(setSubjectGradeInfo, e)} placeholder="cth. Bahasa Indonesia" className={inputStyles}/></div>
+                        <div className="lg:col-span-3">
+                            <label className="block text-sm font-medium mb-1 text-gray-200">Mata Pelajaran</label>
+                            <Select
+                                name="subject"
+                                value={subjectGradeInfo.subject}
+                                onChange={e => handleInfoChange(setSubjectGradeInfo, e)}
+                                className={inputStyles}
+                            >
+                                <option value="" disabled>-- Pilih Mata Pelajaran --</option>
+                                {uniqueSubjects?.map(subj => (
+                                    <option key={subj} value={subj} className="bg-gray-800 text-white">{subj}</option>
+                                ))}
+                            </Select>
+                        </div>
                     </>}
                     {mode === 'violation' && <>
                         <div>
@@ -370,6 +387,43 @@ const MassInputPage: React.FC = () => {
         enabled: !!selectedClass
     });
     
+    const { data: uniqueSubjects } = useQuery({
+        queryKey: ['distinctSubjects', user?.id],
+        queryFn: async (): Promise<string[]> => {
+            if (!user) return [];
+            const { data, error } = await supabase
+                .from('academic_records')
+                .select('subject')
+                .eq('user_id', user.id);
+
+            if (error) {
+                console.error("Error fetching distinct subjects:", error);
+                return [];
+            }
+            
+            const subjects = (data as { subject: string }[])?.map(item => item.subject) || [];
+            return [...new Set(subjects)].sort();
+        },
+        enabled: !!user,
+        staleTime: 1000 * 60 * 15, // 15 minutes
+    });
+
+    const { data: academicRecords } = useQuery({
+        queryKey: ['academicRecordsForPrint', selectedClass, subjectGradeInfo.subject],
+        queryFn: async (): Promise<AcademicRecordRow[]> => {
+            if (!selectedClass || !subjectGradeInfo.subject || !studentsData || studentsData.length === 0) return [];
+            const { data, error } = await supabase
+                .from('academic_records')
+                .select('*')
+                .in('student_id', studentsData.map(s => s.id))
+                .eq('subject', subjectGradeInfo.subject);
+
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: mode === 'academic_print' && !!selectedClass && !!subjectGradeInfo.subject && !!studentsData,
+    });
+
     const students = useMemo(() => {
         if (!studentsData) return [];
         if (!searchTerm) return studentsData;
@@ -598,7 +652,7 @@ const MassInputPage: React.FC = () => {
     
 
     const handlePrintGrades = async () => {
-        if (!selectedClass || !subjectGradeInfo.subject) { toast.warning("Pilih kelas dan masukkan nama mata pelajaran."); return; }
+        if (!selectedClass || !subjectGradeInfo.subject) { toast.warning("Pilih kelas dan mata pelajaran."); return; }
         if (selectedStudentIds.size === 0) { toast.warning("Pilih setidaknya satu siswa untuk mencetak."); return; }
         setIsExporting(true);
         toast.info("Membuat rekap nilai...");
@@ -606,27 +660,36 @@ const MassInputPage: React.FC = () => {
         const doc = new jsPDF();
         const className = classes?.find(c => c.id === selectedClass)?.name;
         
-        doc.setFontSize(18);
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Rekap Nilai - ${subjectGradeInfo.subject}`, 14, 22);
+        doc.text(`Kelas: ${className}`, 14, 22);
+        
         doc.setFontSize(12);
-        doc.text(`Kelas: ${className}`, 14, 30);
-        doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 36);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'numeric', year: 'numeric'})}`, 14, 30);
         
         const tableData = (students || [])
             .filter(s => selectedStudentIds.has(s.id))
-            .map((s, index) => [
-                index + 1,
-                s.name,
-                scores[s.id] || 'N/A'
-            ]);
+            .map((s, index) => {
+                const record = academicRecords?.find(r => r.student_id === s.id);
+                return [
+                    index + 1,
+                    s.name,
+                    record ? record.score : 'N/A'
+                ];
+            });
         
         autoTable(doc, {
-            startY: 45,
+            startY: 40,
             head: [['No', 'Nama Siswa', 'Nilai']],
             body: tableData,
             theme: 'grid',
-            headStyles: { fillColor: '#4f46e5' },
+            headStyles: { fillColor: [81, 91, 212] },
+            styles: {
+                font: 'helvetica',
+                lineColor: '#dee2e6',
+                lineWidth: 0.1
+            },
         });
 
         doc.save(`Nilai_${subjectGradeInfo.subject.replace(/\s/g, '_')}_${className}.pdf`);
@@ -688,6 +751,7 @@ const MassInputPage: React.FC = () => {
                     setNoteMethod={setNoteMethod}
                     templateNote={templateNote}
                     setTemplateNote={setTemplateNote}
+                    uniqueSubjects={uniqueSubjects}
                 />
             )}
         </div>
