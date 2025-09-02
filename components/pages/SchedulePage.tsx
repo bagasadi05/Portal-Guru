@@ -313,6 +313,13 @@ const SchedulePage: React.FC = () => {
                 location: 'Sekolah',
                 startOutputType: 'local',
                 endOutputType: 'local',
+                alarms: [
+                    {
+                        action: 'display',
+                        description: 'Pengingat Kelas',
+                        trigger: { minutes: 10, before: true },
+                    }
+                ]
             };
         });
 
