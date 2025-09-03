@@ -285,6 +285,14 @@ export type Database = {
     }
     Views: { [_ in never]: never }
     Functions: {
+      apply_quiz_points_to_grade: {
+        Args: {
+          student_id_param: string
+          subject_param: string
+          user_id_param: string
+        }
+        Returns: undefined
+      }
       delete_user_account: {
 // FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}

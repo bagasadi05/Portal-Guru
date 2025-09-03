@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AttendanceStatus } from '../../types';
@@ -48,7 +47,8 @@ type ModalState =
     | { type: 'academic', data: AcademicRecordRow | null }
     | { type: 'quiz', data: QuizPointRow | null }
     | { type: 'violation', mode: 'add' | 'edit', data: ViolationRow | null }
-    | { type: 'confirmDelete', title: string; message: string; onConfirm: () => void; isPending: boolean };
+    | { type: 'confirmDelete', title: string; message: string; onConfirm: () => void; isPending: boolean }
+    | { type: 'applyPoints' };
 
 type AiSummary = {
     general_evaluation: string;
@@ -287,6 +287,7 @@ const StudentDetailPage = () => {
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [subjectToApply, setSubjectToApply] = useState('');
     
     useEffect(() => {
         if (location.state?.openTab) {
@@ -437,6 +438,24 @@ const StudentDetailPage = () => {
         onError: (error: Error) => toast.error(error.message)
     });
     
+    const applyPointsMutation = useMutation({
+        mutationFn: async (subject: string) => {
+            if (!studentId || !user) throw new Error("Data tidak lengkap");
+            const { error } = await supabase.rpc('apply_quiz_points_to_grade', {
+                student_id_param: studentId,
+                subject_param: subject,
+                user_id_param: user.id
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['studentDetails', studentId] });
+            setModalState({ type: 'closed' });
+            toast.success("Poin berhasil diterapkan dan nilai diperbarui!");
+        },
+        onError: (err: Error) => toast.error(`Gagal menerapkan poin: ${err.message}`)
+    });
+
     // Handlers
     const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -606,11 +625,41 @@ const StudentDetailPage = () => {
         window.print();
     };
 
+    const { student, reports, academicRecords, quizPoints, violations, classes, communications } = studentDetails || {};
+    
+    const uniqueSubjectsForGrades = useMemo(() => {
+        if (!academicRecords) return [];
+        const subjects = academicRecords.map(r => r.subject);
+        return [...new Set(subjects)];
+    }, [academicRecords]);
+
+    const currentRecordForSubject = useMemo(() => {
+        if (!subjectToApply || !academicRecords) return null;
+        return academicRecords
+            .filter(r => r.subject === subjectToApply)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    }, [subjectToApply, academicRecords]);
+
+    useEffect(() => {
+        if (modalState.type === 'applyPoints') {
+            setSubjectToApply(uniqueSubjectsForGrades.length > 0 ? uniqueSubjectsForGrades[0] : '');
+        } else {
+            setSubjectToApply('');
+        }
+    }, [modalState.type, uniqueSubjectsForGrades]);
+
+    const handleApplyPointsSubmit = () => {
+        if (!subjectToApply) {
+            toast.error("Silakan pilih mata pelajaran.");
+            return;
+        }
+        applyPointsMutation.mutate(subjectToApply);
+    };
+
     if (isLoading) return <div className="flex items-center justify-center h-screen"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
     if (isError) return <div className="flex items-center justify-center h-screen">Error: {(queryError as Error).message}</div>;
-    if (!studentDetails) return null;
+    if (!studentDetails || !student) return null;
 
-    const { student, reports, academicRecords, quizPoints, violations, classes, communications } = studentDetails;
 
     return (
         <div className="space-y-8 p-4 md:p-6 animate-fade-in-up bg-gray-950 min-h-full">
@@ -667,6 +716,17 @@ const StudentDetailPage = () => {
                             <div><CardTitle>Poin Keaktifan Kelas</CardTitle><CardDescription>Catatan poin untuk keaktifan siswa saat pelajaran.</CardDescription></div>
                             <Button onClick={() => setModalState({ type: 'quiz', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Poin</Button>
                           </div>
+                           {quizPoints.length > 0 && (
+                                <div className="mb-4 p-4 bg-purple-900/20 rounded-xl flex items-center justify-between animate-fade-in">
+                                    <div>
+                                        <p className="font-bold text-white">Total {quizPoints.length} Poin Tersedia</p>
+                                        <p className="text-sm text-purple-300">Gunakan poin ini untuk menambah nilai akhir mata pelajaran.</p>
+                                    </div>
+                                    <Button onClick={() => setModalState({ type: 'applyPoints' })} variant="outline" className="bg-white/10 border-purple-400/50 hover:bg-purple-500/20 text-purple-300 hover:text-white">
+                                        <TrendingUpIcon className="w-4 h-4 mr-2"/> Gunakan Poin
+                                    </Button>
+                                </div>
+                            )}
                           <ActivityPointsHistory records={quizPoints} onEdit={(r) => setModalState({type: 'quiz', data: r})} onDelete={(id) => handleDelete('quiz_points', id)} isOnline={isOnline} />
                       </TabsContent>
                       <TabsContent value="violations" className="p-6">
@@ -763,7 +823,34 @@ const StudentDetailPage = () => {
                 </div>
             </div>
 
-            {modalState.type !== 'closed' && modalState.type !== 'confirmDelete' && (
+            {modalState.type === 'applyPoints' ? (
+                <Modal isOpen={true} onClose={() => setModalState({ type: 'closed' })} title="Gunakan Poin Keaktifan">
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Anda akan menggunakan <strong>{quizPoints.length} poin</strong> keaktifan sebagai nilai tambahan. Poin ini akan dihapus setelah digunakan.
+                        </p>
+                        <div>
+                            <label htmlFor="subject-select" className="block text-sm font-medium mb-1">Pilih Mata Pelajaran</label>
+                            <Select id="subject-select" value={subjectToApply} onChange={e => setSubjectToApply(e.target.value)} required>
+                                <option value="" disabled>-- Pilih --</option>
+                                {uniqueSubjectsForGrades.map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </div>
+                        {currentRecordForSubject && (
+                            <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-md text-sm">
+                                <p>Nilai Saat Ini: <strong className="text-lg">{currentRecordForSubject.score}</strong></p>
+                                <p>Nilai Baru: <strong className="text-lg text-green-500">{Math.min(100, currentRecordForSubject.score + quizPoints.length)}</strong></p>
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setModalState({ type: 'closed' })}>Batal</Button>
+                            <Button type="button" onClick={handleApplyPointsSubmit} disabled={applyPointsMutation.isPending || !subjectToApply}>
+                                {applyPointsMutation.isPending ? 'Menerapkan...' : 'Terapkan Poin'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            ) : modalState.type !== 'closed' && modalState.type !== 'confirmDelete' && (
                 <Modal isOpen={true} onClose={() => setModalState({ type: 'closed' })} title={
                     modalState.type === 'editStudent' ? 'Edit Profil Siswa' : 
                     modalState.type === 'report' ? (modalState.data ? 'Edit Catatan' : 'Tambah Catatan Baru') :

@@ -22,6 +22,7 @@ DROP FUNCTION IF EXISTS public.get_student_portal_data(text, uuid);
 DROP FUNCTION IF EXISTS public.get_student_portal_data(text, text); -- Menjaga untuk kompatibilitas mundur
 DROP FUNCTION IF EXISTS public.verify_access_code(text);
 DROP FUNCTION IF EXISTS public.send_parent_message(uuid, text, text, uuid);
+DROP FUNCTION IF EXISTS public.apply_quiz_points_to_grade(uuid, text, uuid);
 
 
 -- Fungsi untuk memverifikasi kode akses secara aman dan mengembalikan ID siswa.
@@ -136,6 +137,69 @@ BEGIN
 END;
 $$;
 
+-- Fungsi baru untuk menerapkan poin keaktifan ke nilai mata pelajaran.
+-- SECURITY DEFINER untuk memungkinkan operasi lintas tabel (update academic_records, delete quiz_points)
+-- dalam satu transaksi atomik, sambil tetap memeriksa kepemilikan data.
+CREATE OR REPLACE FUNCTION public.apply_quiz_points_to_grade(
+    student_id_param uuid,
+    subject_param text,
+    user_id_param uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    total_points int;
+    target_record_id uuid;
+BEGIN
+    -- 1. Validasi: Pastikan pengguna yang memanggil adalah pemilik data siswa.
+    IF NOT EXISTS (
+        SELECT 1 FROM public.students
+        WHERE id = student_id_param AND user_id = user_id_param
+    ) THEN
+        RAISE EXCEPTION 'Izin ditolak: Anda bukan pemilik data siswa ini.';
+    END IF;
+
+    -- 2. Hitung total poin keaktifan yang tersedia untuk siswa.
+    SELECT COUNT(*)
+    INTO total_points
+    FROM public.quiz_points
+    WHERE student_id = student_id_param AND user_id = user_id_param;
+
+    -- 3. Jika tidak ada poin, keluar dari fungsi tanpa melakukan apa-apa.
+    IF total_points = 0 THEN
+        RETURN;
+    END IF;
+
+    -- 4. Temukan catatan akademik terbaru untuk mata pelajaran yang ditentukan.
+    SELECT ar.id
+    INTO target_record_id
+    FROM public.academic_records ar
+    WHERE ar.student_id = student_id_param
+      AND ar.subject = subject_param
+      AND ar.user_id = user_id_param
+    ORDER BY ar.created_at DESC
+    LIMIT 1;
+
+    -- 5. Jika tidak ada catatan akademik untuk mata pelajaran tersebut, lemparkan galat.
+    IF target_record_id IS NULL THEN
+        RAISE EXCEPTION 'Tidak ditemukan catatan akademik untuk mata pelajaran yang dipilih.';
+    END IF;
+
+    -- 6. Perbarui skor, pastikan tidak melebihi 100.
+    UPDATE public.academic_records
+    SET score = LEAST(100, score + total_points)
+    WHERE id = target_record_id;
+
+    -- 7. Hapus semua poin keaktifan yang telah digunakan untuk siswa ini.
+    DELETE FROM public.quiz_points
+    WHERE student_id = student_id_param AND user_id = user_id_param;
+
+END;
+$$;
+
 
 -- Catatan tentang Keamanan:
 -- Menggunakan 'SECURITY DEFINER' sangat kuat. Pemeriksaan internal 'IF NOT is_valid THEN RETURN; END IF;'
@@ -149,4 +213,4 @@ $$;
 1.  Buat file baru di dalam direktori `supabase/migrations/` proyek Anda.
 2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions_v3.sql`.
 3.  Salin seluruh konten dari blok kode SQL di atas ke dalam file baru yang Anda buat.
-4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.Gagal mengirim pesan: new row violates row-level security policy for table "communications"
+4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.Gagal mengirim pesan: new row violates row-level security policy for table "communications"apa bisa kamu membuatkan fitur dimana hasil dari point keaktifan siswa dapat menjadi nilai tambahan untuk mata pelajaran
