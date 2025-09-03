@@ -146,6 +146,14 @@
         background-color: rgba(139, 92, 246, 0.6); /* purple-500/60 */
       }
 
+      /* Utility to hide scrollbars */
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
 
       /* Styles for Login/Role Selection Page (Light & Dark) */
       .login-card {

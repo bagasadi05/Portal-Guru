@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -72,7 +71,7 @@ const GlassCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, 
 );
 
 const SummaryCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, colorClass: string }> = ({ icon: Icon, label, value, colorClass }) => (
-    <GlassCard className="p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-purple-400/50">
+    <GlassCard className="p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-purple-400/50 cursor-pointer h-full">
         <div className="flex items-center gap-4">
             <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-white ${colorClass}`}>
                  <Icon className="w-6 h-6" />
@@ -307,13 +306,12 @@ const ParentPortalPage: React.FC = () => {
     // --- MUTATIONS ---
     const sendMessageMutation = useMutation({
         mutationFn: async (messageText: string) => {
-            if (!studentId || !portalData?.teacher?.user_id) throw new Error("Data tidak lengkap");
-            const { error } = await supabase.from('communications').insert({
-                student_id: studentId,
-                user_id: portalData.teacher.user_id,
-                message: messageText,
-                sender: 'parent',
-                is_read: false
+            if (!studentId || !accessCode || !portalData?.teacher?.user_id) throw new Error("Data tidak lengkap");
+            const { error } = await supabase.rpc('send_parent_message', {
+                student_id_param: studentId,
+                access_code_param: accessCode,
+                message_param: messageText,
+                teacher_user_id_param: portalData.teacher.user_id,
             });
             if (error) throw error;
         },
@@ -396,11 +394,19 @@ const ParentPortalPage: React.FC = () => {
             case 'summary':
                 return (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <SummaryCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} colorClass="bg-green-500" />
-                            <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-red-500" />
-                            <SummaryCard icon={BarChartIcon} label="Nilai Rata-Rata" value={academicRecords.length > 0 ? Math.round(academicRecords.reduce((sum, r) => sum + r.score, 0) / academicRecords.length) : 'N/A'} colorClass="bg-blue-500" />
-                            <SummaryCard icon={SparklesIcon} label="Poin Keaktifan" value={quizPoints.length} colorClass="bg-yellow-500" />
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                             <button onClick={() => setActiveSection('attendance')} className="text-left w-full h-full">
+                                <SummaryCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} colorClass="bg-green-500" />
+                            </button>
+                            <button onClick={() => setActiveSection('violations')} className="text-left w-full h-full">
+                                <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-red-500" />
+                            </button>
+                            <button onClick={() => setActiveSection('grades')} className="text-left w-full h-full">
+                                <SummaryCard icon={BarChartIcon} label="Nilai Rata-Rata" value={academicRecords.length > 0 ? Math.round(academicRecords.reduce((sum, r) => sum + r.score, 0) / academicRecords.length) : 'N/A'} colorClass="bg-blue-500" />
+                            </button>
+                            <button onClick={() => setActiveSection('quizzes')} className="text-left w-full h-full">
+                                <SummaryCard icon={SparklesIcon} label="Poin Keaktifan" value={quizPoints.length} colorClass="bg-yellow-500" />
+                            </button>
                         </div>
                         <GlassCard>
                             <CardHeader><CardTitle>Nilai Terbaru</CardTitle></CardHeader>
@@ -501,29 +507,29 @@ const ParentPortalPage: React.FC = () => {
                     </Button>
                 </header>
                 
-                <main className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    <aside className="lg:col-span-1">
-                        <GlassCard className="p-3 sticky top-6">
-                            <nav className="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
-                                {navItems.map(item => (
-                                    <button 
-                                        key={item.id}
-                                        onClick={() => setActiveSection(item.id)}
-                                        className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex-shrink-0 ${activeSection === item.id ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-md' : 'text-gray-300 hover:bg-black/20 hover:text-purple-400'}`}
-                                    >
-                                        <item.icon className="w-5 h-5 flex-shrink-0" />
-                                        <span className="text-sm font-medium">{item.label}</span>
-                                        {item.id === 'communication' && unreadMessages > 0 && (
-                                            <span className="ml-auto bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
-                                                {unreadMessages}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))}
-                            </nav>
-                        </GlassCard>
-                    </aside>
-                    <section className="lg:col-span-3">
+                <main className="space-y-6">
+                    <div className="relative">
+                        <nav className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {navItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveSection(item.id)}
+                                    className={`relative flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${activeSection === item.id ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-300 bg-white/5 hover:bg-white/10 hover:text-white'}`}
+                                >
+                                    <item.icon className="w-5 h-5" />
+                                    <span>{item.label}</span>
+                                    {item.id === 'communication' && unreadMessages > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-gray-800">
+                                            {unreadMessages}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-gray-950 pointer-events-none sm:hidden"></div>
+                    </div>
+                    
+                    <section>
                         {renderContent()}
                     </section>
                 </main>

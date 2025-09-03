@@ -1,16 +1,18 @@
-# Skrip Migrasi SQL untuk Memperbaiki Fungsi Portal Orang Tua
+# Skrip Migrasi SQL untuk Fungsi Portal Orang Tua
 
-Gunakan skrip SQL di bawah ini untuk memperbaiki masalah akses data di portal orang tua. Skrip ini akan dijalankan sebagai bagian dari sistem migrasi Supabase.
+Gunakan skrip SQL di bawah ini untuk memperbaiki masalah akses data dan mengaktifkan fungsionalitas pengiriman pesan di portal orang tua. Skrip ini akan dijalankan sebagai bagian dari sistem migrasi Supabase.
 
 **Tujuan:**
-1.  Menghapus semua versi fungsi `get_student_portal_data` dan `verify_access_code` yang lama dan berpotensi konflik untuk mengatasi galat "could not choose best candidate function".
+1.  Menghapus semua versi fungsi `get_student_portal_data`, `verify_access_code`, dan `send_parent_message` yang lama dan berpotensi konflik.
 2.  Membuat kembali fungsi-fungsi tersebut dengan `SECURITY DEFINER` untuk melewati Row Level Security (RLS) secara terkendali.
 3.  Menambahkan validasi keamanan di dalam fungsi `get_student_portal_data` untuk memastikan bahwa data hanya dikembalikan jika `student_id` dan `access_code` yang diberikan cocok.
-4.  Mengagregasi semua data yang relevan (siswa, guru, nilai, absensi, pelanggaran, dll.) ke dalam satu struktur JSON yang diharapkan oleh aplikasi frontend.
+4.  Menambahkan fungsi `send_parent_message` baru yang secara aman memungkinkan orang tua/siswa mengirim pesan dengan memverifikasi `student_id` dan `access_code` sebelum melakukan penyisipan.
+5.  Mengagregasi semua data yang relevan (siswa, guru, nilai, absensi, pelanggaran, dll.) ke dalam satu struktur JSON yang diharapkan oleh aplikasi frontend.
+
 
 ## Skrip SQL Lengkap
 
-Salin dan tempelkan konten berikut ke dalam file migrasi Supabase baru Anda (misalnya, `supabase/migrations/<timestamp>_fix_parent_portal_functions_v2.sql`).
+Salin dan tempelkan konten berikut ke dalam file migrasi Supabase baru Anda (misalnya, `supabase/migrations/<timestamp>_fix_parent_portal_functions_v3.sql`).
 
 ```sql
 -- Hapus semua fungsi lama yang berpotensi konflik untuk memastikan awal yang bersih.
@@ -19,6 +21,7 @@ DROP FUNCTION IF EXISTS public.get_student_portal_data(uuid, text);
 DROP FUNCTION IF EXISTS public.get_student_portal_data(text, uuid);
 DROP FUNCTION IF EXISTS public.get_student_portal_data(text, text); -- Menjaga untuk kompatibilitas mundur
 DROP FUNCTION IF EXISTS public.verify_access_code(text);
+DROP FUNCTION IF EXISTS public.send_parent_message(uuid, text, text, uuid);
 
 
 -- Fungsi untuk memverifikasi kode akses secara aman dan mengembalikan ID siswa.
@@ -97,6 +100,43 @@ BEGIN
 END;
 $$;
 
+-- Fungsi baru untuk memungkinkan orang tua/siswa mengirim pesan dari portal.
+-- Fungsi ini juga menggunakan SECURITY DEFINER untuk melewati RLS secara aman setelah memverifikasi
+-- identitas pemanggil melalui student_id dan access_code yang cocok.
+CREATE OR REPLACE FUNCTION public.send_parent_message(
+    student_id_param uuid,
+    access_code_param text,
+    message_param text,
+    teacher_user_id_param uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    is_valid boolean;
+BEGIN
+    -- Pemeriksaan Keamanan: Verifikasi bahwa student_id dan access_code yang diberikan cocok.
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.students
+        WHERE id = student_id_param AND access_code = access_code_param
+    ) INTO is_valid;
+
+    -- Jika kredensial tidak valid, lemparkan pengecualian untuk menghentikan operasi.
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid student ID or access code provided';
+    END IF;
+
+    -- Jika valid, lakukan penyisipan pesan ke dalam tabel komunikasi.
+    -- 'user_id' di sini adalah ID guru, untuk menautkan percakapan dengan benar.
+    INSERT INTO public.communications (student_id, user_id, message, sender, is_read)
+    VALUES (student_id_param, teacher_user_id_param, message_param, 'parent', false);
+END;
+$$;
+
+
 -- Catatan tentang Keamanan:
 -- Menggunakan 'SECURITY DEFINER' sangat kuat. Pemeriksaan internal 'IF NOT is_valid THEN RETURN; END IF;'
 -- sangat penting untuk mencegah akses data yang tidak sah. Ini memastikan bahwa meskipun fungsi
@@ -107,6 +147,6 @@ $$;
 ### Cara Menggunakan
 
 1.  Buat file baru di dalam direktori `supabase/migrations/` proyek Anda.
-2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions_v2.sql`.
+2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions_v3.sql`.
 3.  Salin seluruh konten dari blok kode SQL di atas ke dalam file baru yang Anda buat.
-4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.
+4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.Gagal mengirim pesan: new row violates row-level security policy for table "communications"
