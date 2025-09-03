@@ -32,7 +32,7 @@ const PortalLoginPage: React.FC = () => {
 
     if (rpcError) {
         console.error("Supabase portal login RPC error:", rpcError);
-        setError("Terjadi kesalahan saat memverifikasi kode. Silakan coba lagi nanti.");
+        setError("Gagal memverifikasi kode. Ini mungkin disebabkan oleh konfigurasi database (RLS/Functions). Pastikan fungsi di Supabase sudah benar.");
         return;
     }
 

@@ -700,14 +700,14 @@ const MassInputPage: React.FC = () => {
 
     if (step === 1) {
         return (
-            <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex items-center justify-center">
+            <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex items-center justify-center bg-gray-950">
                 <Step1_ModeSelection handleModeSelect={handleModeSelect} />
             </div>
         );
     }
     
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8">
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 bg-gray-950">
             {mode && (
                 <Step2_ConfigurationAndInput
                     mode={mode}

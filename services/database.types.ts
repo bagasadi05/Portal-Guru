@@ -10,6 +10,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// FIX: Changed 'interface' to 'type' for correct Supabase type inference.
 export type Database = {
   public: {
     Tables: {
@@ -41,6 +42,7 @@ export type Database = {
           user_id?: string;
           created_at?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       };
       communications: {
@@ -65,6 +67,7 @@ export type Database = {
         Update: {
           is_read?: boolean
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       quiz_points: {
@@ -101,6 +104,7 @@ export type Database = {
           student_id?: string;
           user_id?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       };
       attendance: {
@@ -131,18 +135,21 @@ export type Database = {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       classes: {
         Row: { id: string; name: string; user_id: string; created_at: string; }
         Insert: { id?: string; name: string; user_id: string; created_at?: string; }
         Update: { id?: string; name?: string; user_id?: string; created_at?: string; }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       students: {
         Row: { id: string; name: string; class_id: string; avatar_url: string; user_id: string; created_at: string; gender: "Laki-laki" | "Perempuan"; access_code: string | null }
         Insert: { id?: string; name: string; class_id: string; avatar_url: string; user_id: string; created_at?: string; gender: "Laki-laki" | "Perempuan"; access_code?: string | null }
         Update: { id?: string; name?: string; class_id?: string; avatar_url?: string; user_id?: string; created_at?: string; gender?: "Laki-laki" | "Perempuan"; access_code?: string | null }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       reports: {
@@ -176,6 +183,7 @@ export type Database = {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       schedules: {
@@ -209,6 +217,7 @@ export type Database = {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       violations: {
@@ -239,6 +248,7 @@ export type Database = {
           user_id?: string
           created_at?: string
         }
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       }
       tasks: {
@@ -269,12 +279,14 @@ export type Database = {
           status?: "todo" | "in_progress" | "done";
           created_at?: string;
         };
+        // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
       };
     }
     Views: { [_ in never]: never }
     Functions: {
       delete_user_account: {
+// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}
         Returns: undefined
       }
@@ -346,6 +358,7 @@ export type Database = {
         }[]
       }
       get_weekly_attendance_summary: {
+// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}
         Returns: {
           day: string

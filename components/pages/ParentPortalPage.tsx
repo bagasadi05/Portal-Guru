@@ -7,7 +7,7 @@ import { useToast } from '../../hooks/useToast';
 import { Database } from '../../services/database.types';
 import { CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon } from '../Icons';
+import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon, LayoutGridIcon } from '../Icons';
 import { Input } from '../ui/Input';
 
 type PortalRpcResult = Database['public']['Functions']['get_student_portal_data']['Returns'][number];
@@ -40,11 +40,13 @@ const fetchPortalData = async (studentId: string, accessCode: string): Promise<P
 
     if (error) {
         console.error("Portal access RPC failed:", error);
-        throw error;
+        // Provide a more descriptive error for debugging backend issues.
+        throw new Error(`Gagal memuat data portal: ${error.message}. Pastikan fungsi RPC 'get_student_portal_data' di Supabase sudah dikonfigurasi dengan benar, termasuk hak akses (RLS/SECURITY DEFINER).`);
     }
 
     if (!data || data.length === 0) {
-        throw new Error("Kode akses tidak valid atau data siswa tidak ditemukan.");
+        // This case now specifically means the internal security check of the RPC failed.
+        throw new Error("Akses ditolak. Kode akses mungkin tidak valid untuk siswa ini atau telah kedaluwarsa.");
     }
 
     const portalResult = data[0];
@@ -135,6 +137,138 @@ const QuizzesList: React.FC<{ records: PortalQuizPoint[] }> = ({ records }) => {
       ))}
     </div>
   );
+};
+
+const ProgressChart: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) => {
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+    const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 300 });
+
+    useEffect(() => {
+        if (svgRef.current) {
+            setSvgDimensions({ width: svgRef.current.clientWidth, height: 300 });
+        }
+        const handleResize = () => {
+            if (svgRef.current) {
+                setSvgDimensions({ width: svgRef.current.clientWidth, height: 300 });
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [records]);
+
+    if (!records || records.length < 2) {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                <TrendingUpIcon className="w-16 h-16 mb-4 text-gray-500" />
+                <h4 className="font-semibold">Data Tidak Cukup</h4>
+                <p>Perlu setidaknya 2 catatan nilai untuk menampilkan grafik perkembangan.</p>
+            </div>
+        );
+    }
+
+    const sortedRecords = [...records].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    
+    const { width, height } = svgDimensions;
+    const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const firstDate = new Date(sortedRecords[0].created_at).getTime();
+    const lastDate = new Date(sortedRecords[sortedRecords.length - 1].created_at).getTime();
+    const dateRange = lastDate - firstDate || 1; // Avoid division by zero
+
+    const getX = (dateStr: string) => {
+        const date = new Date(dateStr).getTime();
+        return margin.left + ((date - firstDate) / dateRange) * innerWidth;
+    };
+    const getY = (score: number) => margin.top + innerHeight - (score / 100) * innerHeight;
+
+    const pathData = sortedRecords.map((r, i) => {
+        const x = getX(r.created_at);
+        const y = getY(r.score);
+        return `${i === 0 ? 'M' : 'L'} ${x},${y}`;
+    }).join(' ');
+
+    const yAxisLabels = [0, 25, 50, 75, 100];
+    
+    return (
+        <div className="relative">
+             <svg ref={svgRef} width="100%" height={height} className="text-gray-400">
+                <defs>
+                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                {/* Y Axis Grid Lines & Labels */}
+                {yAxisLabels.map(label => (
+                    <g key={label}>
+                        <line x1={margin.left} y1={getY(label)} x2={width - margin.right} y2={getY(label)} stroke="currentColor" strokeWidth="0.5" strokeDasharray="3,3" opacity="0.3" />
+                        <text x={margin.left - 8} y={getY(label) + 4} textAnchor="end" fontSize="10" fill="currentColor">{label}</text>
+                    </g>
+                ))}
+
+                {/* X Axis Labels */}
+                {sortedRecords.map((record, index) => {
+                    if (sortedRecords.length < 8 || index === 0 || index === sortedRecords.length - 1 || index % Math.floor(sortedRecords.length / 5) === 0) {
+                        return (
+                            <text key={record.id} x={getX(record.created_at)} y={height - margin.bottom + 15} textAnchor="middle" fontSize="10" fill="currentColor">
+                                {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                            </text>
+                        );
+                    }
+                    return null;
+                })}
+                
+                {/* Gradient Area */}
+                <path d={`${pathData} L ${getX(sortedRecords[sortedRecords.length - 1].created_at)},${height - margin.bottom} L ${getX(sortedRecords[0].created_at)},${height - margin.bottom} Z`} fill="url(#chartGradient)" />
+
+                {/* Line Path */}
+                <path d={pathData} fill="none" stroke="#a855f7" strokeWidth="2" />
+                
+                {/* Data Points */}
+                {sortedRecords.map((record, index) => (
+                    <g key={record.id}>
+                        <circle
+                            cx={getX(record.created_at)}
+                            cy={getY(record.score)}
+                            r="4"
+                            fill={hoveredIndex === index ? "#fff" : "#a855f7"}
+                            stroke="#a855f7"
+                            strokeWidth="2"
+                            className="transition-all"
+                        />
+                        {/* Hover area */}
+                        <rect
+                            x={getX(record.created_at) - 10}
+                            y={getY(record.score) - 10}
+                            width="20"
+                            height="20"
+                            fill="transparent"
+                            onMouseEnter={() => setHoveredIndex(index)}
+                            onMouseLeave={() => setHoveredIndex(null)}
+                        />
+                    </g>
+                ))}
+                
+                {/* Tooltip */}
+                {hoveredIndex !== null && (
+                    <g transform={`translate(${getX(sortedRecords[hoveredIndex].created_at)}, ${getY(sortedRecords[hoveredIndex].score)})`} className="pointer-events-none transition-opacity duration-200">
+                        <g transform="translate(0, -15)">
+                            <rect x="-50" y="-30" width="100" height="40" rx="5" fill="rgba(17, 24, 39, 0.9)" stroke="rgba(167, 139, 250, 0.5)" />
+                            <text x="0" y="-15" textAnchor="middle" fontSize="10" fill="#d1d5db" className="truncate">
+                                {sortedRecords[hoveredIndex].subject}
+                            </text>
+                            <text x="0" y="0" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white">
+                                Nilai: {sortedRecords[hoveredIndex].score}
+                            </text>
+                        </g>
+                    </g>
+                )}
+            </svg>
+        </div>
+    );
 };
 
 const ParentPortalPage: React.FC = () => {
@@ -246,8 +380,9 @@ const ParentPortalPage: React.FC = () => {
     const { student, reports, attendanceRecords, academicRecords, violations, quizPoints, communications, teacher } = portalData;
     
     const navItems = [
-        { id: 'summary', label: 'Ringkasan', icon: TrendingUpIcon },
+        { id: 'summary', label: 'Ringkasan', icon: LayoutGridIcon },
         { id: 'grades', label: 'Nilai', icon: BarChartIcon },
+        { id: 'progress', label: 'Perkembangan', icon: TrendingUpIcon },
         { id: 'attendance', label: 'Absensi', icon: CalendarIcon },
         { id: 'violations', label: 'Pelanggaran', icon: ShieldAlertIcon },
         { id: 'quizzes', label: 'Keaktifan', icon: SparklesIcon },
@@ -274,6 +409,14 @@ const ParentPortalPage: React.FC = () => {
                     </div>
                 );
             case 'grades': return <GlassCard className="animate-fade-in"><CardHeader><CardTitle>Semua Nilai Akademik</CardTitle></CardHeader><CardContent><GradesList records={academicRecords} /></CardContent></GlassCard>;
+            case 'progress': return (
+                <GlassCard className="animate-fade-in">
+                    <CardHeader><CardTitle>Grafik Perkembangan Nilai Akademik</CardTitle></CardHeader>
+                    <CardContent>
+                        <ProgressChart records={academicRecords} />
+                    </CardContent>
+                </GlassCard>
+            );
             case 'attendance': return (
                 <GlassCard className="animate-fade-in">
                     <CardHeader><CardTitle>Riwayat Absensi</CardTitle></CardHeader>

@@ -3,21 +3,22 @@
 Gunakan skrip SQL di bawah ini untuk memperbaiki masalah akses data di portal orang tua. Skrip ini akan dijalankan sebagai bagian dari sistem migrasi Supabase.
 
 **Tujuan:**
-1.  Menghapus fungsi PostgreSQL `get_student_portal_data` dan `verify_access_code` yang lama dan berpotensi tidak aman.
+1.  Menghapus semua versi fungsi `get_student_portal_data` dan `verify_access_code` yang lama dan berpotensi konflik untuk mengatasi galat "could not choose best candidate function".
 2.  Membuat kembali fungsi-fungsi tersebut dengan `SECURITY DEFINER` untuk melewati Row Level Security (RLS) secara terkendali.
 3.  Menambahkan validasi keamanan di dalam fungsi `get_student_portal_data` untuk memastikan bahwa data hanya dikembalikan jika `student_id` dan `access_code` yang diberikan cocok.
 4.  Mengagregasi semua data yang relevan (siswa, guru, nilai, absensi, pelanggaran, dll.) ke dalam satu struktur JSON yang diharapkan oleh aplikasi frontend.
 
 ## Skrip SQL Lengkap
 
-Salin dan tempelkan konten berikut ke dalam file migrasi Supabase baru Anda (misalnya, `supabase/migrations/<timestamp>_fix_parent_portal_functions.sql`).
+Salin dan tempelkan konten berikut ke dalam file migrasi Supabase baru Anda (misalnya, `supabase/migrations/<timestamp>_fix_parent_portal_functions_v2.sql`).
 
 ```sql
--- Hapus fungsi lama yang tidak aman terlebih dahulu untuk memastikan awal yang bersih.
-DROP FUNCTION IF EXISTS public.get_student_portal_data(text, text);
-DROP FUNCTION IF EXISTS public.verify_access_code(text);
+-- Hapus semua fungsi lama yang berpotensi konflik untuk memastikan awal yang bersih.
+-- Ini mengatasi galat "could not choose best candidate function" dengan menghapus semua definisi yang ambigu.
 DROP FUNCTION IF EXISTS public.get_student_portal_data(uuid, text);
-DROP FUNCTION IF EXISTS public.verify_access_code(access_code_param text);
+DROP FUNCTION IF EXISTS public.get_student_portal_data(text, uuid);
+DROP FUNCTION IF EXISTS public.get_student_portal_data(text, text); -- Menjaga untuk kompatibilitas mundur
+DROP FUNCTION IF EXISTS public.verify_access_code(text);
 
 
 -- Fungsi untuk memverifikasi kode akses secara aman dan mengembalikan ID siswa.
@@ -106,6 +107,6 @@ $$;
 ### Cara Menggunakan
 
 1.  Buat file baru di dalam direktori `supabase/migrations/` proyek Anda.
-2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions.sql`.
+2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions_v2.sql`.
 3.  Salin seluruh konten dari blok kode SQL di atas ke dalam file baru yang Anda buat.
 4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.

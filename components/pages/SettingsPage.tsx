@@ -117,11 +117,11 @@ const ProfileSection: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <h3 className="text-xl font-bold">{user?.name}</h3>
-                            <p className="text-gray-400">{user?.email}</p>
+                            <p className="text-gray-500 dark:text-gray-400">{user?.email}</p>
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-300">Nama Lengkap</label>
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Lengkap</label>
                         <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1"/>
                     </div>
                     <div className="flex justify-end">
@@ -143,24 +143,24 @@ const AppearanceSection: React.FC = () => {
                 <CardDescription>Pilih tema warna favorit Anda untuk aplikasi.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <p className="text-sm font-medium text-white">Mode Warna</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Mode Warna</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button onClick={() => setTheme('light')} className={`p-4 rounded-lg border-2 transition-all ${theme === 'light' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-black/10' : 'border-gray-700 hover:border-blue-400 bg-black/20'}`}>
+                    <button onClick={() => setTheme('light')} className={`p-4 rounded-lg border-2 transition-all ${theme === 'light' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-gray-50 dark:bg-black/10' : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 bg-white dark:bg-black/20'}`}>
                         <div className="flex items-center gap-4">
                             <SunIcon className="w-6 h-6 text-yellow-500"/>
                             <div>
-                                <p className="font-semibold text-gray-200 text-left">Terang</p>
-                                <p className="text-xs text-gray-400 text-left">Gunakan tema terang.</p>
+                                <p className="font-semibold text-gray-800 dark:text-gray-200 text-left">Terang</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-left">Gunakan tema terang.</p>
                             </div>
                             {theme === 'light' && <CheckCircleIcon className="w-6 h-6 text-blue-500 ml-auto"/>}
                         </div>
                     </button>
-                    <button onClick={() => setTheme('dark')} className={`p-4 rounded-lg border-2 transition-all ${theme === 'dark' ? 'border-purple-500 ring-2 ring-purple-500/20 bg-black/10' : 'border-gray-700 hover:border-purple-400 bg-black/20'}`}>
+                    <button onClick={() => setTheme('dark')} className={`p-4 rounded-lg border-2 transition-all ${theme === 'dark' ? 'border-purple-500 ring-2 ring-purple-500/20 bg-gray-50 dark:bg-black/10' : 'border-gray-200 dark:border-gray-700 hover:border-purple-400 bg-white dark:bg-black/20'}`}>
                         <div className="flex items-center gap-4">
                             <MoonIcon className="w-6 h-6 text-purple-400"/>
                             <div>
-                                <p className="font-semibold text-gray-200 text-left">Gelap</p>
-                                <p className="text-xs text-gray-400 text-left">Gunakan tema gelap.</p>
+                                <p className="font-semibold text-gray-800 dark:text-gray-200 text-left">Gelap</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-left">Gunakan tema gelap.</p>
                             </div>
                             {theme === 'dark' && <CheckCircleIcon className="w-6 h-6 text-purple-500 ml-auto"/>}
                         </div>
@@ -232,10 +232,10 @@ const NotificationsSection: React.FC = () => {
                 <CardDescription>Dapatkan pengingat 5 menit sebelum kelas dimulai.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center justify-between p-4 bg-black/20 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-black/20 rounded-lg">
                     <div>
-                        <p className="font-medium text-gray-200">Notifikasi Jadwal</p>
-                        <p className="text-xs text-gray-400">Izinkan pemberitahuan di browser Anda.</p>
+                        <p className="font-medium text-gray-800 dark:text-gray-200">Notifikasi Jadwal</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Izinkan pemberitahuan di browser Anda.</p>
                     </div>
                     <Switch checked={isNotificationsEnabled} onChange={(e) => handleToggle(e.target.checked)} disabled={isLoading || !isOnline} />
                 </div>
@@ -340,12 +340,12 @@ const IntegrationsSection: React.FC = () => {
                 <CardDescription>Ekspor jadwal mengajar Anda ke aplikasi kalender favorit.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <div className="flex items-start justify-between p-4 bg-black/20 rounded-lg">
+                 <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-black/20 rounded-lg">
                     <div>
-                        <p className="font-medium text-white">Ekspor ke iCalendar (.ics)</p>
-                        <p className="text-xs text-gray-400 mt-1">Impor jadwal Anda ke Google Calendar, Apple Calendar, atau Outlook.</p>
+                        <p className="font-medium text-gray-900 dark:text-white">Ekspor ke iCalendar (.ics)</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Impor jadwal Anda ke Google Calendar, Apple Calendar, atau Outlook.</p>
                     </div>
-                    <Button onClick={handleExport} variant="outline" disabled={!isOnline} className="bg-white/10 border-white/20 hover:bg-white/20 text-white"><DownloadCloudIcon className="w-4 h-4 mr-2"/> Ekspor</Button>
+                    <Button onClick={handleExport} variant="outline" disabled={!isOnline}><DownloadCloudIcon className="w-4 h-4 mr-2"/> Ekspor</Button>
                 </div>
             </CardContent>
         </Card>
@@ -405,11 +405,11 @@ const AccountSection: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     <CardContent>
                         <form onSubmit={handlePasswordChange} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-300">Password Baru</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password Baru</label>
                                 <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="mt-1" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300">Konfirmasi Password Baru</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Konfirmasi Password Baru</label>
                                 <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="mt-1" />
                             </div>
                             <div className="flex justify-end">
@@ -420,14 +420,14 @@ const AccountSection: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </Card>
                 <Card className="border-red-500/50">
                     <CardHeader>
-                        <CardTitle className="text-red-400">Zona Berbahaya</CardTitle>
+                        <CardTitle className="text-red-500 dark:text-red-400">Zona Berbahaya</CardTitle>
                         <CardDescription>Tindakan di bawah ini tidak dapat diurungkan.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <div className="flex items-center justify-between p-4 bg-red-900/20 rounded-lg">
+                         <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                             <div>
-                                <p className="font-semibold text-red-200">Hapus Akun Ini</p>
-                                <p className="text-xs text-red-300">Semua data Anda akan dihapus secara permanen.</p>
+                                <p className="font-semibold text-red-700 dark:text-red-200">Hapus Akun Ini</p>
+                                <p className="text-xs text-red-600 dark:text-red-300">Semua data Anda akan dihapus secara permanen.</p>
                             </div>
                             <Button variant="destructive" onClick={() => setDeleteModalOpen(true)} disabled={!isOnline}>Hapus Akun</Button>
                         </div>
@@ -486,7 +486,7 @@ const SettingsPage: React.FC = () => {
                               <button 
                                   key={item.id} 
                                   onClick={() => setActiveTab(item.id)} 
-                                  className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${ activeTab === item.id ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-md' : 'text-gray-300 hover:bg-black/20 hover:text-purple-400' }`}
+                                  className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${ activeTab === item.id ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white font-semibold shadow-md' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-black/20 hover:text-gray-900 dark:hover:text-purple-400' }`}
                               >
                                   <item.icon className="w-5 h-5 flex-shrink-0" /> 
                                   <span className="text-sm font-medium">{item.label}</span>
