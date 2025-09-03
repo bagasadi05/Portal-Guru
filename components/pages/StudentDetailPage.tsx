@@ -126,10 +126,6 @@ const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ st
         }
     };
 
-    useEffect(() => {
-        generateSummary();
-    }, [studentDetails]);
-
     return (
         <Card>
             <CardHeader>
@@ -155,7 +151,13 @@ const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ st
                         </div>
                     </div>
                 ) : (
-                    <p>Tidak dapat memuat ringkasan.</p>
+                    <div className="text-center py-4">
+                        <Button onClick={generateSummary} disabled={isLoading}>
+                            <SparklesIcon className="w-4 h-4 mr-2" />
+                            Buat Ringkasan Performa AI
+                        </Button>
+                        <p className="text-xs text-gray-400 mt-2">Dapatkan evaluasi holistik performa siswa.</p>
+                    </div>
                 )}
             </CardContent>
         </Card>

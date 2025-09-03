@@ -31,8 +31,8 @@ type DashboardQueryData = {
 };
 
 type AiInsight = {
-    positive_highlights: { student_name: string; reason: string; }[];
-    areas_for_attention: { student_name: string; reason: string; }[];
+    positive_highlights: { student_name: string; reason: string; student_id?: string; }[];
+    areas_for_attention: { student_name: string; reason: string; student_id?: string; }[];
     class_focus_suggestion: string;
 };
 
@@ -73,46 +73,63 @@ const fetchDashboardData = async (userId: string): Promise<DashboardQueryData> =
 };
 
 const AiDashboardInsight: React.FC<{ dashboardData: DashboardQueryData | null }> = ({ dashboardData }) => {
-    const { data: insight, isLoading } = useQuery({
-        queryKey: ['aiDashboardInsight', dashboardData],
-        queryFn: async () => {
-             if (!dashboardData) return null;
-            try {
-                const { students, academicRecords, violations, dailyAttendanceSummary } = dashboardData;
-                const studentMap = new Map(dashboardData.students.map(s => [s.name, s.id]));
+    const [insight, setInsight] = useState<AiInsight | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-                const systemInstruction = `Anda adalah asisten guru AI yang cerdas dan proaktif. Analisis data yang diberikan dan hasilkan ringkasan dalam format JSON yang valid. Fokus pada menyoroti pencapaian positif, area yang memerlukan perhatian, dan saran umum. Gunakan Bahasa Indonesia.`;
-                const studentDataForPrompt = students.map(s => {
-                    const studentViolations = violations.filter(v => v.student_id === s.id).reduce((sum, v) => sum + v.points, 0);
-                    const studentScores = academicRecords.filter(r => r.student_id === s.id);
-                    const avgScore = studentScores.length > 0 ? studentScores.reduce((a, b) => a + b.score, 0) / studentScores.length : null;
-                    return { name: s.name, total_violation_points: studentViolations, average_score: avgScore ? Math.round(avgScore) : 'N/A' };
-                });
-                const prompt = `Analisis data guru berikut untuk memberikan wawasan harian. Data Ringkasan: Total Siswa: ${students.length}, Absensi Hari Ini: ${dailyAttendanceSummary.present} dari ${students.length} hadir. Data Rinci Siswa (nilai & pelanggaran): ${JSON.stringify(studentDataForPrompt)} Tugas Anda: 1. Identifikasi 1-2 siswa berprestasi (nilai rata-rata tinggi, 0 poin pelanggaran). 2. Identifikasi 1-2 siswa yang memerlukan perhatian (nilai rata-rata rendah atau poin pelanggaran tinggi). 3. Berikan satu saran fokus untuk kelas secara umum.`;
-                const responseSchema = { type: Type.OBJECT, properties: { positive_highlights: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { student_name: { type: Type.STRING }, reason: { type: Type.STRING } } } }, areas_for_attention: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { student_name: { type: Type.STRING }, reason: { type: Type.STRING } } } }, class_focus_suggestion: { type: Type.STRING } } };
+    const generateInsight = async () => {
+        if (!dashboardData) return;
+        setIsLoading(true);
+        setError(null);
+        try {
+            const { students, academicRecords, violations, dailyAttendanceSummary } = dashboardData;
+            const studentMap = new Map(dashboardData.students.map(s => [s.name, s.id]));
 
-                const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction, responseMimeType: "application/json", responseSchema } });
-                const parsedInsight: AiInsight = JSON.parse(response.text);
+            const systemInstruction = `Anda adalah asisten guru AI yang cerdas dan proaktif. Analisis data yang diberikan dan hasilkan ringkasan dalam format JSON yang valid. Fokus pada menyoroti pencapaian positif, area yang memerlukan perhatian, dan saran umum. Gunakan Bahasa Indonesia.`;
+            const studentDataForPrompt = students.map(s => {
+                const studentViolations = violations.filter(v => v.student_id === s.id).reduce((sum, v) => sum + v.points, 0);
+                const studentScores = academicRecords.filter(r => r.student_id === s.id);
+                const avgScore = studentScores.length > 0 ? studentScores.reduce((a, b) => a + b.score, 0) / studentScores.length : null;
+                return { name: s.name, total_violation_points: studentViolations, average_score: avgScore ? Math.round(avgScore) : 'N/A' };
+            });
+            const prompt = `Analisis data guru berikut untuk memberikan wawasan harian. Data Ringkasan: Total Siswa: ${students.length}, Absensi Hari Ini: ${dailyAttendanceSummary.present} dari ${students.length} hadir. Data Rinci Siswa (nilai & pelanggaran): ${JSON.stringify(studentDataForPrompt)} Tugas Anda: 1. Identifikasi 1-2 siswa berprestasi (nilai rata-rata tinggi, 0 poin pelanggaran). 2. Identifikasi 1-2 siswa yang memerlukan perhatian (nilai rata-rata rendah atau poin pelanggaran tinggi). 3. Berikan satu saran fokus untuk kelas secara umum.`;
+            const responseSchema = { type: Type.OBJECT, properties: { positive_highlights: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { student_name: { type: Type.STRING }, reason: { type: Type.STRING } } } }, areas_for_attention: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { student_name: { type: Type.STRING }, reason: { type: Type.STRING } } } }, class_focus_suggestion: { type: Type.STRING } } };
 
-                // Add student IDs to the insight object
-                const enrichedInsight = {
-                    ...parsedInsight,
-                    positive_highlights: parsedInsight.positive_highlights.map(h => ({ ...h, student_id: studentMap.get(h.student_name) })),
-                    areas_for_attention: parsedInsight.areas_for_attention.map(a => ({ ...a, student_id: studentMap.get(a.student_name) }))
-                };
-                return enrichedInsight;
-            } catch (err) { console.error("AI Insight Error:", err); return null; }
-        },
-        enabled: !!dashboardData,
-        staleTime: 1000 * 60 * 15, // 15 minutes
-    });
+            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction, responseMimeType: "application/json", responseSchema } });
+            const parsedInsight: AiInsight = JSON.parse(response.text);
+
+            const enrichedInsight = {
+                ...parsedInsight,
+                positive_highlights: parsedInsight.positive_highlights.map(h => ({ ...h, student_id: studentMap.get(h.student_name) })),
+                areas_for_attention: parsedInsight.areas_for_attention.map(a => ({ ...a, student_id: studentMap.get(a.student_name) }))
+            };
+            setInsight(enrichedInsight);
+        } catch (err) {
+            console.error("AI Insight Error:", err);
+            setError("Gagal membuat wawasan AI. Silakan coba lagi.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     if (isLoading) {
         return <div className="space-y-4"><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-1/2"></div><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-full"></div><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-3/4"></div></div>;
     }
+    
+    if (error) {
+        return <p className="text-sm text-red-400">{error}</p>;
+    }
 
     if (!insight) {
-        return <p className="text-sm text-gray-400">Wawasan AI tidak tersedia saat ini.</p>
+        return (
+            <div className="text-center py-4">
+                <Button onClick={generateInsight} disabled={isLoading || !dashboardData}>
+                    <SparklesIcon className="w-4 h-4 mr-2" />
+                    Buat Wawasan Harian dengan AI
+                </Button>
+                <p className="text-xs text-gray-400 mt-2">Dapatkan ringkasan performa kelas hari ini.</p>
+            </div>
+        );
     }
 
     return (

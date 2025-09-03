@@ -126,13 +126,10 @@ const ReportPage: React.FC = () => {
         enabled: !!studentId && !!user,
     });
     
-    const handleGenerateAiNote = async (showToast = true, attendanceSummaryForNote?: typeof editableAttendanceSummary) => {
-        const attendanceData = attendanceSummaryForNote || editableAttendanceSummary;
+    const handleGenerateAiNote = async () => {
         if (!data) return;
         setIsGeneratingNote(true);
-        if (showToast) {
-            toast.info("AI sedang merangkum catatan guru...");
-        }
+        toast.info("AI sedang merangkum catatan guru...");
         try {
             const systemInstruction = `Anda adalah seorang guru wali kelas yang bijaksana, suportif, dan profesional. Tugas Anda adalah menulis paragraf "Catatan Wali Kelas" untuk rapor siswa. Catatan ini harus komprehensif, merangkum performa siswa secara holistik, dan memberikan motivasi. Tulis dalam satu paragraf yang mengalir (3-5 kalimat). Hindari penggunaan daftar atau poin.`;
             
@@ -149,7 +146,7 @@ const ReportPage: React.FC = () => {
             Berikut adalah data ringkas sebagai dasar analisis Anda:
             - **Analisis Akademik:** ${academicSummary}
             - **Analisis Perilaku:** ${behaviorSummary}
-            - **Kehadiran:** Sakit ${attendanceData.Sakit} hari, Izin ${attendanceData.Izin} hari, Alpha ${attendanceData.Alpha} hari.
+            - **Kehadiran:** Sakit ${editableAttendanceSummary.Sakit} hari, Izin ${editableAttendanceSummary.Izin} hari, Alpha ${editableAttendanceSummary.Alpha} hari.
             
             Tugas Anda:
             Sintesis semua informasi di atas menjadi satu paragraf catatan wali kelas yang kohesif. Pastikan catatan tersebut mencakup evaluasi umum, menyoroti kekuatan atau area yang perlu ditingkatkan, dan diakhiri dengan kalimat rekomendasi atau motivasi yang positif.
@@ -157,9 +154,7 @@ const ReportPage: React.FC = () => {
 
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction }});
             setTeacherNote(response.text.replace(/\\n/g, ' '));
-            if (showToast) {
-                toast.success("Catatan guru berhasil dibuat oleh AI!");
-            }
+            toast.success("Catatan guru berhasil dibuat oleh AI!");
         } catch (err) {
             toast.error("Gagal membuat catatan guru.");
             console.error(err);
@@ -198,10 +193,6 @@ const ReportPage: React.FC = () => {
                 setBehavioralNote(`Terdapat ${data.violations.length} catatan pelanggaran.`);
             } else {
                 setBehavioralNote("Tidak ada catatan pelanggaran. Siswa menunjukkan sikap yang baik dan terpuji selama proses pembelajaran.");
-            }
-            
-            if (teacherNote === '') {
-                handleGenerateAiNote(false, attendanceSum);
             }
         }
     }, [data]);
@@ -328,7 +319,7 @@ const ReportPage: React.FC = () => {
                 <div className="max-w-4xl mx-auto flex justify-between items-center">
                     <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeftIcon className="w-4 h-4 mr-2" />Kembali</Button>
                     <div className="flex items-center gap-2">
-                         <Button onClick={() => handleGenerateAiNote()} disabled={isGeneratingNote || !data}>
+                         <Button onClick={handleGenerateAiNote} disabled={isGeneratingNote || !data}>
                             <BrainCircuitIcon className="w-4 h-4 mr-2" />
                             {isGeneratingNote ? "Membuat..." : "Buat Catatan AI"}
                         </Button>
