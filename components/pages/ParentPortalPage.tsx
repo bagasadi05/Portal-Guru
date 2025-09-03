@@ -6,8 +6,9 @@ import { useToast } from '../../hooks/useToast';
 import { Database } from '../../services/database.types';
 import { CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon, LayoutGridIcon } from '../Icons';
+import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon, LayoutGridIcon, PencilIcon, TrashIcon } from '../Icons';
 import { Input } from '../ui/Input';
+import { Modal } from '../ui/Modal';
 
 type PortalRpcResult = Database['public']['Functions']['get_student_portal_data']['Returns'][number];
 type PortalStudentInfo = PortalRpcResult['student'];
@@ -280,6 +281,9 @@ const ParentPortalPage: React.FC = () => {
     const [activeSection, setActiveSection] = useState('summary');
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [editingMessage, setEditingMessage] = useState<PortalCommunication | null>(null);
+    const [editedText, setEditedText] = useState('');
+    const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<PortalCommunication | null>(null);
 
     // --- DATA FETCHING ---
     const { data: portalData, isLoading, isError, error } = useQuery<PortalData>({
@@ -321,6 +325,44 @@ const ParentPortalPage: React.FC = () => {
         },
         onError: (err: Error) => toast.error(`Gagal mengirim pesan: ${err.message}`)
     });
+    
+    const updateMessageMutation = useMutation({
+        mutationFn: async ({ messageId, newText }: { messageId: string; newText: string }) => {
+            if (!studentId || !accessCode) throw new Error("Data otentikasi tidak lengkap");
+            const { error } = await supabase.rpc('update_parent_message', {
+                student_id_param: studentId,
+                access_code_param: accessCode,
+                message_id_param: messageId,
+                new_message_param: newText,
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
+            setEditingMessage(null);
+            setEditedText('');
+            toast.success("Pesan berhasil diperbarui.");
+        },
+        onError: (err: Error) => toast.error(`Gagal memperbarui pesan: ${err.message}`),
+    });
+
+    const deleteMessageMutation = useMutation({
+        mutationFn: async (messageId: string) => {
+            if (!studentId || !accessCode) throw new Error("Data otentikasi tidak lengkap");
+            const { error } = await supabase.rpc('delete_parent_message', {
+                student_id_param: studentId,
+                access_code_param: accessCode,
+                message_id_param: messageId,
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
+            setConfirmDeleteMessage(null);
+            toast.success("Pesan berhasil dihapus.");
+        },
+        onError: (err: Error) => toast.error(`Gagal menghapus pesan: ${err.message}`),
+    });
 
     // --- MEMOIZED VALUES ---
     const attendanceSummary = useMemo(() => {
@@ -341,6 +383,28 @@ const ParentPortalPage: React.FC = () => {
         e.preventDefault();
         if (newMessage.trim()) {
             sendMessageMutation.mutate(newMessage);
+        }
+    };
+    
+    const handleStartEdit = (msg: PortalCommunication) => {
+        setEditingMessage(msg);
+        setEditedText(msg.message);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingMessage(null);
+        setEditedText('');
+    };
+
+    const handleSaveEdit = () => {
+        if (editingMessage && editedText.trim()) {
+            updateMessageMutation.mutate({ messageId: editingMessage.id, newText: editedText.trim() });
+        }
+    };
+
+    const handleDeleteConfirm = () => {
+        if (confirmDeleteMessage) {
+            deleteMessageMutation.mutate(confirmDeleteMessage.id);
         }
     };
     
@@ -469,12 +533,36 @@ const ParentPortalPage: React.FC = () => {
                     </CardHeader>
                     <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
                         {communications.map(msg => (
-                            <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
+                            <div key={msg.id} className={`group flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
                                 {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
-                                <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
-                                    <p className="whitespace-pre-wrap">{msg.message}</p>
-                                    <div className={`text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 text-right' : 'text-gray-400 text-right'}`}>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</div>
-                                </div>
+                                {editingMessage?.id === msg.id ? (
+                                    <div className="flex-1 max-w-md p-2 rounded-2xl bg-blue-600">
+                                        <textarea
+                                            value={editedText}
+                                            onChange={(e) => setEditedText(e.target.value)}
+                                            className="w-full bg-blue-700 text-white p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                                            rows={3}
+                                            autoFocus
+                                        />
+                                        <div className="flex justify-end gap-2 mt-2">
+                                            <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Batal</Button>
+                                            <Button size="sm" onClick={handleSaveEdit} disabled={updateMessageMutation.isPending}>
+                                                {updateMessageMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className={`relative max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
+                                        <p className="whitespace-pre-wrap">{msg.message}</p>
+                                        <div className={`text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 text-right' : 'text-gray-400 text-right'}`}>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</div>
+                                        {msg.sender === 'parent' && (
+                                            <div className="absolute top-0 -left-20 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30" onClick={() => handleStartEdit(msg)}><PencilIcon className="w-3.5 h-3.5"/></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30 text-red-400" onClick={() => setConfirmDeleteMessage(msg)}><TrashIcon className="w-3.5 h-3.5"/></Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
                             </div>
                         ))}
@@ -534,6 +622,20 @@ const ParentPortalPage: React.FC = () => {
                     </section>
                 </main>
             </div>
+             <Modal isOpen={!!confirmDeleteMessage} onClose={() => setConfirmDeleteMessage(null)} title="Konfirmasi Hapus Pesan">
+                <div className="space-y-4">
+                    <p>Apakah Anda yakin ingin menghapus pesan ini secara permanen?</p>
+                    <p className="text-sm italic p-3 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-300">
+                        "{confirmDeleteMessage?.message}"
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" onClick={() => setConfirmDeleteMessage(null)}>Batal</Button>
+                        <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleteMessageMutation.isPending}>
+                            {deleteMessageMutation.isPending ? 'Menghapus...' : 'Hapus'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

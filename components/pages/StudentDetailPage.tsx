@@ -48,7 +48,8 @@ type ModalState =
     | { type: 'quiz', data: QuizPointRow | null }
     | { type: 'violation', mode: 'add' | 'edit', data: ViolationRow | null }
     | { type: 'confirmDelete', title: string; message: string; onConfirm: () => void; isPending: boolean }
-    | { type: 'applyPoints' };
+    | { type: 'applyPoints' }
+    | { type: 'editCommunication', data: CommunicationRow };
 
 type AiSummary = {
     general_evaluation: string;
@@ -63,6 +64,8 @@ type ReportMutationVars = { operation: 'add', data: Database['public']['Tables']
 type AcademicMutationVars = { operation: 'add', data: Database['public']['Tables']['academic_records']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['academic_records']['Update'], id: string };
 type QuizMutationVars = { operation: 'add', data: Database['public']['Tables']['quiz_points']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['quiz_points']['Update'], id: number };
 type ViolationMutationVars = { operation: 'add', data: Database['public']['Tables']['violations']['Insert'] } | { operation: 'edit', data: Database['public']['Tables']['violations']['Update'], id: string };
+type CommunicationMutationVars = { operation: 'edit', data: { message: string }, id: string };
+
 
 const AiStudentSummary: React.FC<{ studentDetails: StudentDetailsData }> = ({ studentDetails }) => {
     const [summary, setSummary] = useState<AiSummary | null>(null);
@@ -406,6 +409,14 @@ const StudentDetailPage = () => {
         ...mutationOptions
     });
     
+    const communicationMutation = useMutation({
+        mutationFn: async (vars: CommunicationMutationVars) => {
+            const { error } = await supabase.from('communications').update(vars.data).eq('id', vars.id);
+            if (error) throw error;
+        },
+        ...mutationOptions
+    });
+
     const deleteMutation = useMutation({
         mutationFn: async ({ table, id }: { table: keyof Database['public']['Tables'], id: string | number }) => {
             const { error } = await supabase.from(table).delete().eq('id', id);
@@ -531,6 +542,10 @@ const StudentDetailPage = () => {
                     violationMutation.mutate({ operation: 'add', data: violationPayload });
                 }
                 break;
+            case 'editCommunication':
+                const commPayload = { message: rawData.message as string };
+                communicationMutation.mutate({ operation: 'edit', data: commPayload, id: modalState.data.id });
+                break;
         }
     };
     
@@ -545,6 +560,7 @@ const StudentDetailPage = () => {
     }, [studentDetails?.attendanceRecords]);
     
     const totalViolationPoints = useMemo(() => studentDetails?.violations.reduce((sum, v) => sum + v.points, 0) || 0, [studentDetails?.violations]);
+    const unreadMessagesCount = useMemo(() => studentDetails?.communications.filter(m => m.sender === 'parent' && !m.is_read).length || 0, [studentDetails?.communications]);
 
     const handleCopyAccessCode = () => {
         if (!studentDetails?.student.access_code) return;
@@ -700,7 +716,11 @@ const StudentDetailPage = () => {
                               <TabsTrigger value="activity">Keaktifan</TabsTrigger>
                               <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
                               <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
-                              <TabsTrigger value="communication">Komunikasi</TabsTrigger>
+                              <TabsTrigger value="communication">
+                                <div className="relative">Komunikasi
+                                {unreadMessagesCount > 0 && <span className="absolute -top-1 -right-3 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">{unreadMessagesCount}</span>}
+                                </div>
+                              </TabsTrigger>
                               <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
                           </TabsList>
                       </div>
@@ -748,14 +768,20 @@ const StudentDetailPage = () => {
                             <div className="p-6"><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Orang Tua</CardTitle></div>
                             <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
                                 {communications.map(msg => (
-                                    <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
+                                    <div key={msg.id} className={`group flex items-start gap-3 ${msg.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
                                         {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
-                                        <div className={`max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'teacher' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
+                                        <div className={`relative max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'teacher' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
                                             <p className="whitespace-pre-wrap">{msg.message}</p>
                                             <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'teacher' ? 'text-blue-200 justify-end' : 'text-gray-400 justify-end'}`}>
                                             <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
                                             {msg.sender === 'teacher' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
                                             </div>
+                                            {msg.sender === 'teacher' && isOnline && (
+                                                <div className="absolute top-0 -left-20 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30" onClick={() => setModalState({ type: 'editCommunication', data: msg })}><PencilIcon className="w-3.5 h-3.5"/></Button>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30 text-red-400" onClick={() => handleDelete('communications', msg.id)}><TrashIcon className="w-3.5 h-3.5"/></Button>
+                                                </div>
+                                            )}
                                         </div>
                                         {msg.sender === 'teacher' && <img src={user?.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
                                     </div>
@@ -856,6 +882,7 @@ const StudentDetailPage = () => {
                     modalState.type === 'report' ? (modalState.data ? 'Edit Catatan' : 'Tambah Catatan Baru') :
                     modalState.type === 'academic' ? (modalState.data ? 'Edit Nilai' : 'Tambah Nilai Baru') :
                     modalState.type === 'quiz' ? (modalState.data ? 'Edit Poin' : 'Tambah Poin Keaktifan') :
+                    modalState.type === 'editCommunication' ? 'Edit Pesan' :
                     'Tambah Pelanggaran'
                 }>
                     <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -882,6 +909,9 @@ const StudentDetailPage = () => {
                         {modalState.type === 'violation' && <>
                              <div><label>Tanggal</label><Input name="date" type="date" defaultValue={modalState.data?.date || new Date().toISOString().slice(0,10)} required/></div>
                              <div><label>Jenis Pelanggaran</label><Select name="description" defaultValue={modalState.data?.description || ''} required>{violationList.map(v => <option key={v.code} value={v.description}>{v.description} ({v.points} poin)</option>)}</Select></div>
+                        </>}
+                        {modalState.type === 'editCommunication' && <>
+                            <div><label>Pesan</label><textarea name="message" rows={5} defaultValue={modalState.data.message} className="w-full mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600" required></textarea></div>
                         </>}
                         <div className="flex justify-end gap-2 pt-4">
                             <Button type="button" variant="ghost" onClick={() => setModalState({ type: 'closed' })}>Batal</Button>

@@ -23,6 +23,9 @@ DROP FUNCTION IF EXISTS public.get_student_portal_data(text, text); -- Menjaga u
 DROP FUNCTION IF EXISTS public.verify_access_code(text);
 DROP FUNCTION IF EXISTS public.send_parent_message(uuid, text, text, uuid);
 DROP FUNCTION IF EXISTS public.apply_quiz_points_to_grade(uuid, text, uuid);
+-- Tambahkan fungsi baru untuk dihapus jika ada
+DROP FUNCTION IF EXISTS public.update_parent_message(uuid, text, uuid, text);
+DROP FUNCTION IF EXISTS public.delete_parent_message(uuid, text, uuid);
 
 
 -- Fungsi untuk memverifikasi kode akses secara aman dan mengembalikan ID siswa.
@@ -201,11 +204,78 @@ END;
 $$;
 
 
+-- Fungsi baru untuk memungkinkan orang tua/siswa MEMPERBARUI pesan mereka sendiri dari portal.
+-- Verifikasi keamanan dilakukan sebelum pembaruan.
+CREATE OR REPLACE FUNCTION public.update_parent_message(
+    student_id_param uuid,
+    access_code_param text,
+    message_id_param uuid,
+    new_message_param text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Pemeriksaan Keamanan: Verifikasi bahwa pemanggil memiliki akses ke siswa ini
+    -- DAN bahwa pesan tersebut milik siswa ini dan dikirim oleh orang tua.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.students s
+        JOIN public.communications c ON s.id = c.student_id
+        WHERE s.id = student_id_param
+          AND s.access_code = access_code_param
+          AND c.id = message_id_param
+          AND c.sender = 'parent'
+    ) THEN
+        RAISE EXCEPTION 'Izin ditolak atau pesan tidak ditemukan.';
+    END IF;
+
+    -- Jika valid, perbarui pesan.
+    UPDATE public.communications
+    SET message = new_message_param
+    WHERE id = message_id_param;
+END;
+$$;
+
+
+-- Fungsi baru untuk memungkinkan orang tua/siswa MENGHAPUS pesan mereka sendiri dari portal.
+-- Verifikasi keamanan dilakukan sebelum penghapusan.
+CREATE OR REPLACE FUNCTION public.delete_parent_message(
+    student_id_param uuid,
+    access_code_param text,
+    message_id_param uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Pemeriksaan Keamanan: Sama seperti pembaruan, verifikasi kepemilikan.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.students s
+        JOIN public.communications c ON s.id = c.student_id
+        WHERE s.id = student_id_param
+          AND s.access_code = access_code_param
+          AND c.id = message_id_param
+          AND c.sender = 'parent'
+    ) THEN
+        RAISE EXCEPTION 'Izin ditolak atau pesan tidak ditemukan.';
+    END IF;
+
+    -- Jika valid, hapus pesan.
+    DELETE FROM public.communications
+    WHERE id = message_id_param;
+END;
+$$;
+
 -- Catatan tentang Keamanan:
 -- Menggunakan 'SECURITY DEFINER' sangat kuat. Pemeriksaan internal 'IF NOT is_valid THEN RETURN; END IF;'
 -- sangat penting untuk mencegah akses data yang tidak sah. Ini memastikan bahwa meskipun fungsi
 -- berjalan dengan hak istimewa yang lebih tinggi, ia hanya mengembalikan data untuk siswa yang diautentikasi.
-
 ```
 
 ### Cara Menggunakan
@@ -213,4 +283,4 @@ $$;
 1.  Buat file baru di dalam direktori `supabase/migrations/` proyek Anda.
 2.  Beri nama file dengan timestamp saat ini, diikuti dengan nama deskriptif. Contoh: `20240730100000_fix_parent_portal_functions_v3.sql`.
 3.  Salin seluruh konten dari blok kode SQL di atas ke dalam file baru yang Anda buat.
-4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.Gagal mengirim pesan: new row violates row-level security policy for table "communications"apa bisa kamu membuatkan fitur dimana hasil dari point keaktifan siswa dapat menjadi nilai tambahan untuk mata pelajaran
+4.  Jalankan `supabase db push` atau terapkan migrasi melalui alur kerja Anda untuk menerapkan perubahan ke database Supabase Anda.

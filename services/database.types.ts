@@ -65,6 +65,8 @@ export type Database = {
           is_read?: boolean
         }
         Update: {
+          id?: string
+          message?: string
           is_read?: boolean
         }
         // FIX: Add Relationships property to conform to Supabase type definitions.
@@ -293,6 +295,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      delete_parent_message: {
+        Args: {
+          student_id_param: string
+          access_code_param: string
+          message_id_param: string
+        }
+        Returns: undefined
+      }
       delete_user_account: {
 // FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}
@@ -372,6 +382,24 @@ export type Database = {
           day: string
           present_percentage: number
         }[]
+      }
+      send_parent_message: {
+        Args: {
+          student_id_param: string
+          access_code_param: string
+          message_param: string
+          teacher_user_id_param: string
+        }
+        Returns: undefined
+      }
+      update_parent_message: {
+        Args: {
+          student_id_param: string
+          access_code_param: string
+          message_id_param: string
+          new_message_param: string
+        }
+        Returns: undefined
       }
       verify_access_code: {
         Args: {
