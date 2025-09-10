@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Input } from '../ui/Input';
@@ -285,63 +284,69 @@ const StudentsPage: React.FC = () => {
                         <TabsContent key={c.id} value={c.id}>
                             {studentsForActiveClass.length === 0 ? (
                                 <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-                                    <UsersIcon className="w-16 h-16 mx-auto mb-4" />
-                                    <h3 className="text-xl font-semibold">Tidak Ada Siswa</h3>
-                                    <p>{searchTerm ? "Tidak ada siswa yang cocok dengan pencarian Anda." : "Anda bisa menambahkan siswa ke kelas ini."}</p>
-                                </div>
-                            ) : viewMode === 'grid' ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {studentsForActiveClass.map(student => (
-                                        <Card key={student.id} className="group relative p-6 h-full transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-sky-500/50 dark:hover:border-purple-500/50">
-                                            <div className="flex flex-col items-center text-center">
-                                                <Link to={`/siswa/${student.id}`} className="block">
-                                                    <img src={student.avatar_url} alt={student.name} className="w-28 h-28 rounded-full mb-4 object-cover border-4 border-gray-200 dark:border-white/10 group-hover:border-purple-400 transition-colors mx-auto" />
-                                                    <h3 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-purple-300">{student.name}</h3>
-                                                </Link>
-                                            </div>
-                                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenStudentModal('edit', student)}><PencilIcon className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDeleteStudentClick(student)}><TrashIcon className="h-4 w-4" /></Button>
-                                            </div>
-                                        </Card>
-                                    ))}
+                                    <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"/>
+                                    <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Tidak Ada Siswa</h3>
+                                    <p>Belum ada siswa di kelas ini atau tidak ada yang cocok dengan filter Anda.</p>
                                 </div>
                             ) : (
-                                <Card className="overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300">
-                                            <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-white/5">
-                                                <tr><th scope="col" className="px-6 py-3">Nama</th><th scope="col" className="px-6 py-3">Jenis Kelamin</th><th scope="col" className="px-6 py-3 text-right">Aksi</th></tr>
-                                            </thead>
-                                            <tbody>
-                                                {studentsForActiveClass.map(student => (
-                                                    <tr key={student.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-white/5">
-                                                        <th scope="row" className="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                                                            <Link to={`/siswa/${student.id}`} className="flex items-center gap-3 group">
-                                                                <img src={student.avatar_url} alt={student.name} className="w-9 h-9 rounded-full object-cover" />
-                                                                <span className="group-hover:text-sky-600 dark:group-hover:text-purple-300">{student.name}</span>
-                                                            </Link>
-                                                        </th>
-                                                        <td className="px-6 py-4">{student.gender}</td>
-                                                        <td className="px-6 py-4"><div className="flex items-center justify-end gap-1">
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenStudentModal('edit', student)}><PencilIcon className="h-4 w-4" /></Button>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDeleteStudentClick(student)}><TrashIcon className="h-4 w-4" /></Button>
-                                                        </div></td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </Card>
+                                <div className={viewMode === 'grid' 
+                                    ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" 
+                                    : "space-y-4"}>
+                                    {studentsForActiveClass.map(student => (
+                                        viewMode === 'grid' ? (
+                                            <Card key={student.id} className="text-center p-4 group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/20 flex flex-col">
+                                                <Link to={`/siswa/${student.id}`} className="block flex-grow">
+                                                    <img src={student.avatar_url} alt={student.name} className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-gray-200 dark:border-gray-700 group-hover:border-purple-400 transition-colors"/>
+                                                    <h4 className="mt-4 font-bold text-lg text-gray-800 dark:text-gray-200">{student.name}</h4>
+                                                </Link>
+                                                <div className="mt-4 flex justify-center gap-2">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenStudentModal('edit', student)}><PencilIcon className="w-4 h-4"/></Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDeleteStudentClick(student)}><TrashIcon className="w-4 h-4"/></Button>
+                                                </div>
+                                            </Card>
+                                        ) : (
+                                            <Card key={student.id} className="p-4 flex items-center justify-between transition-all duration-300 hover:bg-gray-50 dark:hover:bg-white/5">
+                                                <Link to={`/siswa/${student.id}`} className="flex items-center gap-4 flex-grow">
+                                                    <img src={student.avatar_url} alt={student.name} className="w-12 h-12 rounded-full object-cover"/>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-800 dark:text-gray-200">{student.name}</h4>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400">{student.gender}</p>
+                                                    </div>
+                                                </Link>
+                                                <div className="flex gap-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleOpenStudentModal('edit', student)}><PencilIcon className="w-4 h-4"/></Button>
+                                                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDeleteStudentClick(student)}><TrashIcon className="w-4 h-4"/></Button>
+                                                </div>
+                                            </Card>
+                                        )
+                                    ))}
+                                </div>
                             )}
                         </TabsContent>
                     ))}
                  </Tabs>
             </main>
             
+            {/* Student Modal */}
+            <Modal isOpen={isStudentModalOpen} onClose={() => setIsStudentModalOpen(false)} title={studentModalMode === 'add' ? 'Tambah Siswa Baru' : 'Edit Siswa'}>
+                <form onSubmit={handleStudentFormSubmit} className="space-y-4">
+                    <div><label htmlFor="student-name">Nama Lengkap</label><Input id="student-name" name="name" defaultValue={currentStudent?.name || ''} required/></div>
+                    <div><label htmlFor="student-class">Kelas</label><Select id="student-class" name="class_id" defaultValue={currentStudent?.class_id || activeClassId} required>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
+                    <div><label>Jenis Kelamin</label><div className="flex gap-4 mt-2"><label className="flex items-center"><input type="radio" name="gender" value="Laki-laki" defaultChecked={currentStudent?.gender !== 'Perempuan'} className="form-radio"/><span className="ml-2">Laki-laki</span></label><label className="flex items-center"><input type="radio" name="gender" value="Perempuan" defaultChecked={currentStudent?.gender === 'Perempuan'} className="form-radio"/><span className="ml-2">Perempuan</span></label></div></div>
+                    <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={() => setIsStudentModalOpen(false)}>Batal</Button><Button type="submit" disabled={isAddingStudent || isUpdatingStudent}>{isAddingStudent || isUpdatingStudent ? 'Menyimpan...' : 'Simpan'}</Button></div>
+                </form>
+            </Modal>
+            {/* Class Modal */}
+            <Modal isOpen={isClassModalOpen} onClose={() => setIsClassModalOpen(false)} title={classModalMode === 'add' ? 'Tambah Kelas Baru' : 'Edit Kelas'}>
+                <form onSubmit={handleClassFormSubmit} className="space-y-4">
+                    <div><label htmlFor="class-name">Nama Kelas</label><Input id="class-name" value={classNameInput} onChange={e => setClassNameInput(e.target.value)} required placeholder="cth. 7A"/></div>
+                    <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={() => setIsClassModalOpen(false)}>Batal</Button><Button type="submit" disabled={isAddingClass || isUpdatingClass}>{isAddingClass || isUpdatingClass ? 'Menyimpan...' : 'Simpan'}</Button></div>
+                </form>
+            </Modal>
+            
             <ConfirmActionModal 
                 isOpen={confirmModalState.isOpen}
-                onClose={() => setConfirmModalState(prev => ({...prev, isOpen: false}))}
+                onClose={() => setConfirmModalState(prev => ({ ...prev, isOpen: false }))}
                 onConfirm={confirmModalState.onConfirm}
                 title={confirmModalState.title}
                 message={confirmModalState.message}
@@ -349,25 +354,6 @@ const StudentsPage: React.FC = () => {
                 confirmVariant={confirmModalState.confirmVariant}
                 isLoading={isDeletingStudent || isDeletingClass || isGeneratingBulkCodes}
             />
-
-            {isStudentModalOpen && (
-                <Modal title={studentModalMode === 'add' ? 'Tambah Siswa Baru' : 'Edit Siswa'} isOpen={isStudentModalOpen} onClose={() => setIsStudentModalOpen(false)}>
-                    <form onSubmit={handleStudentFormSubmit} className="space-y-4">
-                        <div><label htmlFor="name" className="block text-sm font-medium">Nama Lengkap</label><Input id="name" name="name" defaultValue={currentStudent?.name || ''} required /></div>
-                        <div><label htmlFor="gender" className="block text-sm font-medium">Jenis Kelamin</label><div className="flex gap-4 mt-2"><label className="flex items-center"><input type="radio" name="gender" value="Laki-laki" defaultChecked={!currentStudent || currentStudent.gender === 'Laki-laki'} className="form-radio"/><span className="ml-2">Laki-laki</span></label><label className="flex items-center"><input type="radio" name="gender" value="Perempuan" defaultChecked={currentStudent?.gender === 'Perempuan'} className="form-radio"/><span className="ml-2">Perempuan</span></label></div></div>
-                        <div><label htmlFor="class_id" className="block text-sm font-medium">Kelas</label><Select id="class_id" name="class_id" defaultValue={currentStudent?.class_id || activeClassId || classes[0]?.id} required>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
-                        <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={() => setIsStudentModalOpen(false)}>Batal</Button><Button type="submit" disabled={isAddingStudent || isUpdatingStudent}>{isAddingStudent || isUpdatingStudent ? 'Menyimpan...' : 'Simpan'}</Button></div>
-                    </form>
-                </Modal>
-            )}
-            {isClassModalOpen && (
-                 <Modal title={classModalMode === 'add' ? 'Tambah Kelas Baru' : 'Edit Nama Kelas'} isOpen={isClassModalOpen} onClose={() => setIsClassModalOpen(false)}>
-                    <form onSubmit={handleClassFormSubmit} className="space-y-4">
-                        <div><label htmlFor="className" className="block text-sm font-medium">Nama Kelas</label><Input id="className" value={classNameInput} onChange={e => setClassNameInput(e.target.value)} placeholder="Contoh: Kelas 7A" required /></div>
-                        <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={() => setIsClassModalOpen(false)}>Batal</Button><Button type="submit" disabled={isAddingClass || isUpdatingClass}>{isAddingClass || isUpdatingClass ? 'Menyimpan...' : 'Simpan'}</Button></div>
-                    </form>
-                </Modal>
-            )}
         </div>
     );
 };

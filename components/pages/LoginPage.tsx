@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -85,7 +84,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-screen animate-page-transition">
             <div className="login-card">
                 
                 <h1 className="form-title">

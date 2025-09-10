@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 type Theme = 'light' | 'dark';
 
@@ -13,31 +12,36 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('theme')) {
-      return localStorage.getItem('theme') as Theme;
-    }
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    // Pada mount awal, React state disinkronkan dengan DOM.
+    // Ini bergantung pada skrip inline di `index.html` yang telah berjalan
+    // dan mengatur kelas yang benar pada elemen <html> untuk mencegah FOUC.
+    if (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) {
       return 'dark';
     }
     return 'light';
   });
 
   useEffect(() => {
+    // Effect ini menyinkronkan perubahan status (misalnya, dari toggle)
+    // kembali ke DOM dan localStorage.
     const root = window.document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
+    // Pertahankan pengaturan tema baru ke localStorage.
     localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  }, [setTheme]);
+  }, []);
+
+  const value = useMemo(() => ({ theme, toggleTheme, setTheme }), [theme, toggleTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

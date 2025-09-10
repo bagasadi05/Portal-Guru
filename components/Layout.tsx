@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { HomeIcon, UsersIcon, CalendarIcon, ClipboardIcon, LogoutIcon, SettingsIcon, GraduationCapIcon, SearchIcon, CheckSquareIcon, BrainCircuitIcon, ClipboardPenIcon, DownloadCloudIcon } from './Icons';
 import ThemeToggle from './ui/ThemeToggle';
@@ -123,7 +122,7 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
              </button>
             <div className="flex-1"></div>
-            <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="flex items-center space-x-3 sm:space-x-4">
                 {pendingCount > 0 && (
                     <div className="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900/40 px-3 py-1.5 rounded-full animate-fade-in">
                         {isSyncing ? (
@@ -194,6 +193,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+    const location = useLocation();
     
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -207,7 +207,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }, []);
   
     return (
-        <div className="flex h-screen bg-gray-50 dark:bg-transparent text-gray-900 dark:text-gray-100">
+        <div className="flex h-screen bg-transparent text-gray-900 dark:text-gray-100">
             {/* Desktop Sidebar */}
             <div className="hidden md:flex">
                 <Sidebar />
@@ -225,7 +225,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <div className="flex-1 flex flex-col overflow-hidden">
                 <Header onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)} />
                 <main className="flex-1 overflow-x-hidden overflow-y-auto">
-                    {children}
+                    <div key={location.pathname} className="animate-page-transition">
+                        {children}
+                    </div>
                 </main>
             </div>
 

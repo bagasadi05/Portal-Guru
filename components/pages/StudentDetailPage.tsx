@@ -710,19 +710,21 @@ const StudentDetailPage = () => {
 
                 <Card>
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                      <div className="flex justify-center border-b border-white/10 px-6">
-                          <TabsList className="bg-black/20">
-                              <TabsTrigger value="grades">Nilai</TabsTrigger>
-                              <TabsTrigger value="activity">Keaktifan</TabsTrigger>
-                              <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
-                              <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
-                              <TabsTrigger value="communication">
-                                <div className="relative">Komunikasi
-                                {unreadMessagesCount > 0 && <span className="absolute -top-1 -right-3 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">{unreadMessagesCount}</span>}
-                                </div>
-                              </TabsTrigger>
-                              <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
-                          </TabsList>
+                      <div className="border-b border-white/10">
+                          <div className="flex justify-start sm:justify-center px-4 sm:px-6 overflow-x-auto scrollbar-hide">
+                              <TabsList className="bg-black/20">
+                                  <TabsTrigger value="grades">Nilai</TabsTrigger>
+                                  <TabsTrigger value="activity">Keaktifan</TabsTrigger>
+                                  <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
+                                  <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
+                                  <TabsTrigger value="communication">
+                                    <div className="relative">Komunikasi
+                                    {unreadMessagesCount > 0 && <span className="absolute -top-1 -right-3 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">{unreadMessagesCount}</span>}
+                                    </div>
+                                  </TabsTrigger>
+                                  <TabsTrigger value="portal">Portal Ortu</TabsTrigger>
+                              </TabsList>
+                          </div>
                       </div>
                       <TabsContent value="grades" className="p-6">
                           <div className="flex justify-between items-center mb-4">
@@ -764,7 +766,7 @@ const StudentDetailPage = () => {
                            {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="group relative p-4 rounded-lg bg-black/20"><div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'report', data: r})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDelete('reports', r.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div><h4 className="font-bold text-white">{r.title}</h4><p className="text-xs text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-300">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><BookOpenIcon className="w-16 h-16 mx-auto mb-4 text-gray-600"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan guru untuk siswa ini.</p></div>)}
                       </TabsContent>
                       <TabsContent value="communication">
-                          <div className="flex flex-col h-[70vh]">
+                          <div className="flex flex-col h-[60vh]">
                             <div className="p-6"><CardTitle className="flex items-center gap-2"><MessageSquareIcon className="w-5 h-5 text-blue-400"/>Komunikasi dengan Orang Tua</CardTitle></div>
                             <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
                                 {communications.map(msg => (

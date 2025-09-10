@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
@@ -61,7 +60,7 @@ const PortalLoginPage: React.FC = () => {
   const handleBlur = () => document.body.setAttribute('data-focused', 'false');
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
+    <div className="flex items-center justify-center min-h-screen animate-page-transition">
         <div className="login-card">
             <div className="holographic-orb-container">
                 <div className="holographic-orb">

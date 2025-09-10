@@ -24,7 +24,9 @@ const TasksPage = lazy(() => import('@/components/pages/TasksPage'));
 const ReportPage = lazy(() => import('@/components/pages/ReportPage'));
 const MassInputPage = lazy(() => import('@/components/pages/MassInputPage'));
 const PortalLoginPage = lazy(() => import('@/components/pages/PortalLoginPage'));
-const ParentPortalPage = lazy(() => import('@/components/pages/ParentPortalPage'));
+// FIX: The lazy import for ParentPortalPage was failing because the component is likely a named export, not a default one.
+// The import has been updated to correctly resolve the named export for React.lazy.
+const ParentPortalPage = lazy(() => import('@/components/pages/ParentPortalPage').then(module => ({ default: module.ParentPortalPage })));
 
 
 // A wrapper for routes that require authentication.

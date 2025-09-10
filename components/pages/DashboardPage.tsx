@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '../ui/Card';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarIcon, UsersIcon, BookOpenIcon, ClockIcon, SparklesIcon, BrainCircuitIcon, CheckSquareIcon, AlertTriangleIcon, CheckCircleIcon } from '../Icons';
+import { CalendarIcon, UsersIcon, BookOpenIcon, ClockIcon, SparklesIcon, BrainCircuitIcon, CheckSquareIcon, AlertTriangleIcon, CheckCircleIcon, UserMinusIcon, ChevronRightIcon, ClipboardPenIcon } from '../Icons';
 import { Button } from '../ui/Button';
 import { Type } from '@google/genai';
 import { ai } from '../../services/supabase';
@@ -12,6 +11,7 @@ import { Database } from '../../services/database.types';
 import { useQuery } from '@tanstack/react-query';
 import DashboardPageSkeleton from '../skeletons/DashboardPageSkeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
+import { Select } from '../ui/Select';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type ScheduleRow = Database['public']['Tables']['schedules']['Row'];
@@ -20,7 +20,7 @@ type ClassRow = Database['public']['Tables']['classes']['Row'];
 type WeeklyAttendance = { day: string; present_percentage: number };
 
 type DashboardQueryData = {
-    students: Pick<StudentRow, 'id' | 'name'>[];
+    students: Pick<StudentRow, 'id' | 'name' | 'avatar_url'>[];
     tasks: TaskRow[];
     schedule: ScheduleRow[];
     classes: Pick<ClassRow, 'id' | 'name'>[];
@@ -44,7 +44,7 @@ const fetchDashboardData = async (userId: string): Promise<DashboardQueryData> =
         studentsRes, tasksRes, scheduleRes, classesRes, dailyAttendanceRes,
         weeklyAttendanceRes, academicRecordsRes, violationsRes
     ] = await Promise.all([
-        supabase.from('students').select('id, name').eq('user_id', userId),
+        supabase.from('students').select('id, name, avatar_url').eq('user_id', userId),
         supabase.from('tasks').select('*').eq('user_id', userId).neq('status', 'done').order('due_date'),
         supabase.from('schedules').select('*').eq('user_id', userId).eq('day', todayDay as Database['public']['Tables']['schedules']['Row']['day']).order('start_time'),
         supabase.from('classes').select('id, name').eq('user_id', userId),
@@ -192,7 +192,7 @@ const WeeklyAttendanceChart: React.FC<{ data: WeeklyAttendance[] }> = ({ data })
                         <g key={day.day} 
                            onMouseEnter={() => setHoveredIndex(index)} 
                            onMouseLeave={() => setHoveredIndex(null)}
-                           className="cursor-pointer">
+                           className="cursor-pointer group">
                             <rect
                                 x={x}
                                 y={y}
@@ -200,8 +200,8 @@ const WeeklyAttendanceChart: React.FC<{ data: WeeklyAttendance[] }> = ({ data })
                                 height={barHeight}
                                 fill="url(#barGradient)"
                                 rx="4"
-                                className="transition-all duration-300"
-                                style={{ transform: hoveredIndex === index ? 'scaleY(1.05)' : 'scaleY(1)', transformOrigin: `bottom` }}
+                                className="transition-transform duration-300 animate-grow-bar group-hover:scale-y-105"
+                                style={{ transformOrigin: 'bottom', animationDelay: `${index * 100}ms` }}
                             />
                             <text
                                 x={x + barWidth / 2}
@@ -251,6 +251,36 @@ const DashboardPage: React.FC = () => {
         enabled: !!user,
     });
     
+    const [subjectForCheck, setSubjectForCheck] = useState<string>('');
+
+    const uniqueSubjects = useMemo(() => {
+        if (!data?.academicRecords) return [];
+        const subjects = new Set(data.academicRecords.map(r => r.subject));
+        return Array.from(subjects).sort();
+    }, [data?.academicRecords]);
+
+    useEffect(() => {
+        if (uniqueSubjects.length > 0 && !subjectForCheck) {
+            setSubjectForCheck(uniqueSubjects[0]);
+        }
+    }, [uniqueSubjects, subjectForCheck]);
+
+    const studentsWithoutGrade = useMemo(() => {
+        if (!subjectForCheck || !data?.students || !data?.academicRecords) return [];
+        
+        const gradedStudentIds = new Set(
+            data.academicRecords
+                .filter(r => r.subject === subjectForCheck)
+                .map(r => r.student_id)
+        );
+
+        return data.students.filter(s => !gradedStudentIds.has(s.id));
+    }, [subjectForCheck, data?.students, data?.academicRecords]);
+
+    const handleNavigateToStudent = (studentId: string) => {
+        navigate(`/siswa/${studentId}`, { state: { openTab: 'grades' } });
+    }
+
     if (isLoading) return <DashboardPageSkeleton />;
 
     const { students = [], tasks = [], schedule = [], classes = [], dailyAttendanceSummary, weeklyAttendance = [] } = data || {};
@@ -264,7 +294,7 @@ const DashboardPage: React.FC = () => {
     ];
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 animate-fade-in">
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent">
             <header>
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-shadow-md">Selamat datang kembali, {user?.name}!</h2>
                 <p className="mt-1 text-lg text-gray-600 dark:text-indigo-200">Berikut adalah ringkasan aktivitas kelas Anda hari ini.</p>
@@ -276,7 +306,7 @@ const DashboardPage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {stats.map(stat => (
                             <Link to={stat.link} key={stat.label} className="group block">
-                                <Card className="p-5 flex items-center gap-5 bg-white dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-800/70 group-hover:bg-gray-50 dark:group-hover:bg-gray-800/90 group-hover:border-gray-300 dark:group-hover:border-purple-400/50 group-hover:-translate-y-1 dark:holographic-shine-hover overflow-hidden relative">
+                                <Card className="p-4 sm:p-5 flex items-center gap-4 sm:gap-5 group-hover:-translate-y-1">
                                     <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>
                                         <stat.icon className="w-7 h-7" />
                                     </div>
@@ -298,6 +328,55 @@ const DashboardPage: React.FC = () => {
                         <CardHeader><CardTitle>Absensi Mingguan</CardTitle><CardDescription>Persentase kehadiran selama 5 hari terakhir.</CardDescription></CardHeader>
                         <CardContent className="h-[180px] p-2">
                            <WeeklyAttendanceChart data={weeklyAttendance} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-3">
+                                <UserMinusIcon className="w-6 h-6 text-sky-500 dark:text-purple-400"/>Siswa Belum Dinilai
+                            </CardTitle>
+                            <CardDescription>
+                                Periksa siswa yang belum memiliki nilai untuk mata pelajaran tertentu.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Select value={subjectForCheck} onChange={(e) => setSubjectForCheck(e.target.value)} className="mb-4">
+                                <option value="" disabled>Pilih Mata Pelajaran</option>
+                                {uniqueSubjects.map(subject => (<option key={subject} value={subject}>{subject}</option>))}
+                            </Select>
+                            <div className="max-h-64 overflow-y-auto space-y-1 pr-2">
+                                {subjectForCheck ? (
+                                    studentsWithoutGrade.length > 0 ? (
+                                        <>
+                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 px-1">
+                                                {studentsWithoutGrade.length} SISWA PERLU DINILAI:
+                                            </p>
+                                            {studentsWithoutGrade.map(student => (
+                                                <div key={student.id} onClick={() => handleNavigateToStudent(student.id)} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                                                    <img src={student.avatar_url} alt={student.name} className="w-9 h-9 rounded-full object-cover" />
+                                                    <span className="font-medium text-gray-700 dark:text-gray-300">{student.name}</span>
+                                                    <ChevronRightIcon className="w-5 h-5 ml-auto text-gray-400" />
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center text-center py-8 bg-green-500/5 dark:bg-green-500/10 rounded-lg animate-fade-in">
+                                            <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                                                <CheckCircleIcon className="w-10 h-10 text-green-600 dark:text-green-400" />
+                                            </div>
+                                            <p className="font-bold text-lg text-green-700 dark:text-green-300">Semua Siswa Telah Dinilai!</p>
+                                            <p className="text-sm text-green-600 dark:text-green-400">Kerja bagus, nilai untuk mata pelajaran ini sudah lengkap.</p>
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                        <ClipboardPenIcon className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500"/>
+                                        <p className="font-semibold">Pilih Mata Pelajaran</p>
+                                        <p className="text-sm">Pilih subjek di atas untuk melihat siapa saja yang masih memerlukan nilai.</p>
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -324,18 +403,46 @@ const DashboardPage: React.FC = () => {
                                         let progressPercent = 0;
                                         if (isCurrent) {
                                             const totalDuration = endTime.getTime() - startTime.getTime();
-                                            const elapsed = now.getTime() - startTime.getTime();
-                                            progressPercent = Math.min(100, (elapsed / totalDuration) * 100);
+                                            if (totalDuration > 0) {
+                                                const elapsed = now.getTime() - startTime.getTime();
+                                                progressPercent = Math.min(100, (elapsed / totalDuration) * 100);
+                                            }
                                         }
-
-                                        const containerClasses = `relative flex items-center gap-3 p-3 bg-gray-100 dark:bg-black/20 rounded-lg transition-all duration-300 overflow-hidden ${isPast ? 'opacity-50' : ''} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20' : ''}`;
+                                        
+                                        const radius = 24;
+                                        const strokeWidth = 3.5;
+                                        const normalizedRadius = radius - strokeWidth / 2;
+                                        const circumference = normalizedRadius * 2 * Math.PI;
+                                        const strokeDashoffset = isCurrent ? circumference - (progressPercent / 100) * circumference : 0;
+                                        
+                                        const containerClasses = `relative flex items-center gap-4 p-4 bg-gray-100 dark:bg-black/20 rounded-xl transition-all duration-300 overflow-hidden ${isPast ? 'opacity-60' : 'hover:bg-gray-200 dark:hover:bg-black/30'} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20' : ''}`;
 
                                         return (
                                             <div key={item.id} className={containerClasses}>
-                                                <div className="flex-shrink-0 w-14 text-center bg-gray-200 dark:bg-white/5 p-2 rounded-md"><p className="text-sm font-bold text-gray-800 dark:text-white">{item.start_time.slice(0,5)}</p><p className="text-xs text-gray-500 dark:text-gray-400">{item.end_time.slice(0,5)}</p></div>
-                                                <div><p className="font-semibold text-gray-900 dark:text-white">{item.subject}</p><p className="text-xs text-gray-500 dark:text-gray-400">Kelas {item.className}</p></div>
+                                                <div className="relative flex-shrink-0 w-12 h-12 flex items-center justify-center">
+                                                    <svg width={radius * 2} height={radius * 2} className="absolute inset-0">
+                                                        <circle className="text-gray-300 dark:text-white/10" stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" r={normalizedRadius} cx={radius} cy={radius}/>
+                                                    </svg>
+                                                    {isCurrent && (
+                                                        <svg width={radius * 2} height={radius * 2} className="absolute inset-0">
+                                                            <circle
+                                                                className="text-sky-500 dark:text-purple-400" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" fill="transparent" r={normalizedRadius} cx={radius} cy={radius}
+                                                                style={{ strokeDasharray: circumference, strokeDashoffset, transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 1s linear' }}
+                                                            />
+                                                        </svg>
+                                                    )}
+                                                    {isPast && (<CheckCircleIcon className="w-7 h-7 text-green-500" />)}
+                                                    {!isCurrent && !isPast && (<ClockIcon className="w-6 h-6 text-gray-400" />)}
+                                                    <span className={`font-bold text-xs z-10 ${isPast ? 'hidden' : ''} ${isCurrent ? 'text-gray-800 dark:text-gray-200' : 'text-gray-800 dark:text-gray-200'}`}>
+                                                        {item.start_time.slice(0, 5)}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-gray-900 dark:text-white">{item.subject}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Kelas {item.className} &bull; Selesai {item.end_time.slice(0, 5)}</p>
+                                                </div>
                                                 {isCurrent && (
-                                                    <div className="absolute bottom-0 left-0 h-1 bg-sky-500 dark:bg-purple-500" style={{ width: `${progressPercent}%`, transition: 'width 1s linear' }}></div>
+                                                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-sky-900/20 to-transparent dark:from-purple-900/30 to-transparent opacity-50 pointer-events-none" style={{ zIndex: 0, width: `${progressPercent}%`, transition: 'width 1s linear' }}/>
                                                 )}
                                             </div>
                                         );

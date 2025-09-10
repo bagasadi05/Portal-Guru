@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -74,6 +76,14 @@ const SchedulePage: React.FC = () => {
     const [draggedOverColumn, setDraggedOverColumn] = useState<ScheduleRow['day'] | null>(null);
 
     const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
+
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timerId = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
+        return () => clearInterval(timerId);
+    }, []);
+    const todayName = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
 
     const { data: schedule = [], isLoading: pageLoading, isError, error: queryError } = useQuery({
         queryKey: ['schedule', user?.id],
@@ -403,7 +413,6 @@ const SchedulePage: React.FC = () => {
     if (pageLoading) return <div className="flex items-center justify-center h-full bg-gray-950"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
     const inputStyles = "pl-10 bg-white/10 border-white/20 placeholder:text-gray-400 text-white focus:bg-white/20 focus:border-purple-400";
-    const todayName = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
     const dayIndexMap = { 'Senin': 0, 'Selasa': 1, 'Rabu': 2, 'Kamis': 3, 'Jumat': 4 };
     const todayIndex = dayIndexMap[todayName as keyof typeof dayIndexMap] ?? -1;
 
@@ -445,17 +454,17 @@ const SchedulePage: React.FC = () => {
                 />
             )}
             
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 flex-grow overflow-y-auto -mx-2 px-2">
+            <div className="relative z-10 flex gap-6 flex-grow overflow-x-auto pb-4">
                 {daysOfWeek.map((day, index) => { 
                     const itemsForDay = schedule.filter(item => item.day === day).sort((a, b) => a.start_time.localeCompare(b.start_time)); 
-                    const isToday = day === todayName;
-                    const isPast = todayIndex > -1 && index < todayIndex;
+                    const isTodayColumn = day === todayName;
+                    const isPastColumn = todayIndex > -1 && index < todayIndex;
                     return (
                          <div 
                             key={day} 
-                            className={`flex flex-col min-h-[200px] p-4 bg-white/5 backdrop-blur-lg rounded-2xl border transition-all duration-300
-                                ${isToday ? 'border-purple-500 animate-pulse-border-glow' : 'border-white/10'}
-                                ${isPast ? 'opacity-60' : ''}
+                            className={`w-[300px] sm:w-[320px] flex-shrink-0 flex flex-col min-h-[200px] p-4 bg-white/5 backdrop-blur-lg rounded-2xl border transition-all duration-300
+                                ${isTodayColumn ? 'border-purple-500 animate-pulse-border-glow' : 'border-white/10'}
+                                ${isPastColumn ? 'opacity-60' : ''}
                                 ${draggedOverColumn === day ? 'bg-white/10 scale-105' : ''}
                             `}
                             onDragOver={(e) => handleDragOver(e, day)}
@@ -464,23 +473,52 @@ const SchedulePage: React.FC = () => {
                             <div className="font-bold text-lg pb-3 mb-4 border-b-2 border-purple-500/50 flex justify-between items-center text-white">{day}</div>
                             <div className="space-y-4 flex-grow overflow-y-auto pr-2 -mr-2">
                                 {itemsForDay.length > 0 ? (
-                                    itemsForDay.map(item => (
-                                        <div 
-                                            key={item.id} 
-                                            draggable={isOnline}
-                                            onDragStart={(e) => handleDragStart(e, item)}
-                                            onDragEnd={handleDragEnd}
-                                            className="relative group bg-black/20 backdrop-blur-sm border border-white/20 p-3.5 rounded-xl cursor-grab active:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-purple-400"
-                                        >
-                                            <div className="absolute top-2 right-2 flex space-x-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleOpenEditModal(item)} className="p-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" aria-label="Edit jadwal" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></button>
-                                                <button onClick={() => handleDeleteSchedule(item.id)} className="p-1.5 rounded-full text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white transition-colors" aria-label="Hapus jadwal" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></button>
+                                    itemsForDay.map(item => {
+                                        const isToday = day === todayName;
+                                        const now = currentTime;
+                                        const [startH, startM] = item.start_time.split(':').map(Number);
+                                        const [endH, endM] = item.end_time.split(':').map(Number);
+                                        const startTime = new Date(now); startTime.setHours(startH, startM, 0, 0);
+                                        const endTime = new Date(now); endTime.setHours(endH, endM, 0, 0);
+                                        
+                                        const isPastOnToday = isToday && now > endTime;
+                                        const isCurrent = isToday && now >= startTime && now <= endTime;
+                                        
+                                        let progressPercent = 0;
+                                        if (isCurrent) {
+                                            const totalDuration = endTime.getTime() - startTime.getTime();
+                                            if (totalDuration > 0) {
+                                                const elapsed = now.getTime() - startTime.getTime();
+                                                progressPercent = Math.min(100, (elapsed / totalDuration) * 100);
+                                            }
+                                        }
+                                        
+                                        const cardClasses = `relative group bg-black/20 backdrop-blur-sm border border-white/20 p-3.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-purple-400 overflow-hidden ${isPastOnToday ? 'opacity-50' : 'cursor-grab active:cursor-grabbing'} ${isCurrent ? 'border-2 border-purple-500 shadow-lg shadow-purple-500/20' : ''}`;
+
+                                        return (
+                                            <div 
+                                                key={item.id} 
+                                                draggable={isOnline && !isPastOnToday}
+                                                onDragStart={(e) => handleDragStart(e, item)}
+                                                onDragEnd={handleDragEnd}
+                                                className={cardClasses}
+                                            >
+                                                <div className="absolute top-2 right-2 flex space-x-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleOpenEditModal(item)} className="p-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" aria-label="Edit jadwal" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></button>
+                                                    <button onClick={() => handleDeleteSchedule(item.id)} className="p-1.5 rounded-full text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white transition-colors" aria-label="Hapus jadwal" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></button>
+                                                </div>
+                                                <p className={`font-bold text-base mb-1 text-white ${isPastOnToday ? 'line-through' : ''}`}>{item.subject}</p>
+                                                <p className="text-sm text-gray-300 flex items-center gap-2"><GraduationCapIcon className="w-4 h-4 text-purple-400"/>Kelas {item.class_id}</p>
+                                                <p className="text-sm text-gray-300 flex items-center gap-2 mt-1"><ClockIcon className="w-4 h-4 text-purple-400"/>{item.start_time} - {item.end_time}</p>
+                                                
+                                                {isCurrent && (
+                                                    <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-purple-500 to-blue-500" 
+                                                         style={{ width: `${progressPercent}%`, transition: 'width 1s linear' }}>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <p className="font-bold text-base mb-1 text-white">{item.subject}</p>
-                                            <p className="text-sm text-gray-300 flex items-center gap-2"><GraduationCapIcon className="w-4 h-4 text-purple-400"/>Kelas {item.class_id}</p>
-                                            <p className="text-sm text-gray-300 flex items-center gap-2 mt-1"><ClockIcon className="w-4 h-4 text-purple-400"/>{item.start_time} - {item.end_time}</p>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 ) : (
                                     draggedOverColumn !== day && (
                                         <div className="flex items-center justify-center h-full text-center text-gray-400 border-2 border-dashed border-white/10 rounded-lg">

@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -313,7 +312,7 @@ const ReportPage: React.FC = () => {
     }
 
     return (
-        <div className="bg-gray-100 dark:bg-gray-800 min-h-screen text-black dark:text-gray-200">
+        <div className="bg-gray-100 dark:bg-gray-800 min-h-screen text-black dark:text-gray-200 animate-page-transition">
             {/* Toolbar */}
             <header className="sticky top-0 z-20 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-sm p-4 print:hidden">
                 <div className="max-w-4xl mx-auto flex justify-between items-center">

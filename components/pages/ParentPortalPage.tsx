@@ -74,570 +74,262 @@ const GlassCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, 
 const SummaryCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, colorClass: string }> = ({ icon: Icon, label, value, colorClass }) => (
     <GlassCard className="p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-purple-400/50 cursor-pointer h-full">
         <div className="flex items-center gap-4">
-            <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-white ${colorClass}`}>
-                 <Icon className="w-6 h-6" />
+            <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center ${colorClass}`}>
+                 <Icon className="w-6 h-6 text-white" />
             </div>
             <div>
                 <p className="text-2xl font-bold text-white">{value}</p>
-                <p className="text-sm text-gray-300">{label}</p>
+                <p className="text-sm text-gray-400">{label}</p>
             </div>
         </div>
     </GlassCard>
 );
 
-const getScoreColorClasses = (score: number) => {
-    if (score >= 85) return { bg: 'bg-green-900/30', border: 'border-green-600', scoreBg: 'bg-green-500' };
-    if (score >= 70) return { bg: 'bg-yellow-900/30', border: 'border-yellow-600', scoreBg: 'bg-yellow-500' };
-    return { bg: 'bg-red-900/30', border: 'border-red-600', scoreBg: 'bg-red-500' };
-};
-
-const GradesList: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) => {
-  if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><GraduationCapIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Data Nilai</h4><p>Belum ada nilai yang diinput oleh guru.</p></div>;
-  const sortedRecords = [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {sortedRecords.map((record) => {
-        const colors = getScoreColorClasses(record.score);
-        return (
-          <div key={record.id} className={`p-4 rounded-xl border-2 ${colors.border} ${colors.bg}`}>
-            <div className="flex items-center gap-4">
-              <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center font-black text-3xl text-white ${colors.scoreBg}`}>
-                {record.score}
-              </div>
-              <div className="flex-grow">
-                <h4 className="font-extrabold text-lg text-white">{record.subject}</h4>
-                <p className="text-xs text-gray-400 font-medium">
-                  {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </p>
-              </div>
-            </div>
-            {record.notes && <p className="text-sm text-gray-300 mt-3 pt-3 border-t-2 border-dashed border-white/10 italic">"{record.notes}"</p>}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const QuizzesList: React.FC<{ records: PortalQuizPoint[] }> = ({ records }) => {
-  if (!records || records.length === 0) return <div className="text-center py-16 text-gray-400"><SparklesIcon className="w-16 h-16 mx-auto mb-4 text-gray-500" /><h4 className="font-semibold">Tidak Ada Poin Keaktifan</h4><p>Belum ada poin keaktifan yang dicatat.</p></div>;
-  const sortedRecords = [...records].sort((a, b) => new Date(b.quiz_date).getTime() - new Date(a.quiz_date).getTime());
-  return (
-    <div className="space-y-3">
-      {sortedRecords.map((record) => (
-        <div key={record.id} className="flex items-center gap-4 p-3 rounded-lg bg-black/20">
-          <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-2xl bg-green-900/40 text-green-200">
-            +1
-          </div>
-          <div className="flex-grow">
-            <p className="font-semibold text-white">{record.quiz_name}</p>
-            <p className="text-xs text-gray-400">{record.subject} &middot; {new Date(record.quiz_date).toLocaleDateString('id-ID')}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const ProgressChart: React.FC<{ records: PortalAcademicRecord[] }> = ({ records }) => {
-    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-    const svgRef = useRef<SVGSVGElement>(null);
-    const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 300 });
-
-    useEffect(() => {
-        if (svgRef.current) {
-            setSvgDimensions({ width: svgRef.current.clientWidth, height: 300 });
-        }
-        const handleResize = () => {
-            if (svgRef.current) {
-                setSvgDimensions({ width: svgRef.current.clientWidth, height: 300 });
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [records]);
-
-    if (!records || records.length < 2) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
-                <TrendingUpIcon className="w-16 h-16 mb-4 text-gray-500" />
-                <h4 className="font-semibold">Data Tidak Cukup</h4>
-                <p>Perlu setidaknya 2 catatan nilai untuk menampilkan grafik perkembangan.</p>
-            </div>
-        );
-    }
-
-    const sortedRecords = [...records].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    
-    const { width, height } = svgDimensions;
-    const margin = { top: 20, right: 20, bottom: 40, left: 40 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    const firstDate = new Date(sortedRecords[0].created_at).getTime();
-    const lastDate = new Date(sortedRecords[sortedRecords.length - 1].created_at).getTime();
-    const dateRange = lastDate - firstDate || 1; // Avoid division by zero
-
-    const getX = (dateStr: string) => {
-        const date = new Date(dateStr).getTime();
-        return margin.left + ((date - firstDate) / dateRange) * innerWidth;
-    };
-    const getY = (score: number) => margin.top + innerHeight - (score / 100) * innerHeight;
-
-    const pathData = sortedRecords.map((r, i) => {
-        const x = getX(r.created_at);
-        const y = getY(r.score);
-        return `${i === 0 ? 'M' : 'L'} ${x},${y}`;
-    }).join(' ');
-
-    const yAxisLabels = [0, 25, 50, 75, 100];
-    
-    return (
-        <div className="relative">
-             <svg ref={svgRef} width="100%" height={height} className="text-gray-400">
-                <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
-                    </linearGradient>
-                </defs>
-                {/* Y Axis Grid Lines & Labels */}
-                {yAxisLabels.map(label => (
-                    <g key={label}>
-                        <line x1={margin.left} y1={getY(label)} x2={width - margin.right} y2={getY(label)} stroke="currentColor" strokeWidth="0.5" strokeDasharray="3,3" opacity="0.3" />
-                        <text x={margin.left - 8} y={getY(label) + 4} textAnchor="end" fontSize="10" fill="currentColor">{label}</text>
-                    </g>
-                ))}
-
-                {/* X Axis Labels */}
-                {sortedRecords.map((record, index) => {
-                    if (sortedRecords.length < 8 || index === 0 || index === sortedRecords.length - 1 || index % Math.floor(sortedRecords.length / 5) === 0) {
-                        return (
-                            <text key={record.id} x={getX(record.created_at)} y={height - margin.bottom + 15} textAnchor="middle" fontSize="10" fill="currentColor">
-                                {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                            </text>
-                        );
-                    }
-                    return null;
-                })}
-                
-                {/* Gradient Area */}
-                <path d={`${pathData} L ${getX(sortedRecords[sortedRecords.length - 1].created_at)},${height - margin.bottom} L ${getX(sortedRecords[0].created_at)},${height - margin.bottom} Z`} fill="url(#chartGradient)" />
-
-                {/* Line Path */}
-                <path d={pathData} fill="none" stroke="#a855f7" strokeWidth="2" />
-                
-                {/* Data Points */}
-                {sortedRecords.map((record, index) => (
-                    <g key={record.id}>
-                        <circle
-                            cx={getX(record.created_at)}
-                            cy={getY(record.score)}
-                            r="4"
-                            fill={hoveredIndex === index ? "#fff" : "#a855f7"}
-                            stroke="#a855f7"
-                            strokeWidth="2"
-                            className="transition-all"
-                        />
-                        {/* Hover area */}
-                        <rect
-                            x={getX(record.created_at) - 10}
-                            y={getY(record.score) - 10}
-                            width="20"
-                            height="20"
-                            fill="transparent"
-                            onMouseEnter={() => setHoveredIndex(index)}
-                            onMouseLeave={() => setHoveredIndex(null)}
-                        />
-                    </g>
-                ))}
-                
-                {/* Tooltip */}
-                {hoveredIndex !== null && (
-                    <g transform={`translate(${getX(sortedRecords[hoveredIndex].created_at)}, ${getY(sortedRecords[hoveredIndex].score)})`} className="pointer-events-none transition-opacity duration-200">
-                        <g transform="translate(0, -15)">
-                            <rect x="-50" y="-30" width="100" height="40" rx="5" fill="rgba(17, 24, 39, 0.9)" stroke="rgba(167, 139, 250, 0.5)" />
-                            <text x="0" y="-15" textAnchor="middle" fontSize="10" fill="#d1d5db" className="truncate">
-                                {sortedRecords[hoveredIndex].subject}
-                            </text>
-                            <text x="0" y="0" textAnchor="middle" fontSize="12" fontWeight="bold" fill="white">
-                                Nilai: {sortedRecords[hoveredIndex].score}
-                            </text>
-                        </g>
-                    </g>
-                )}
-            </svg>
-        </div>
-    );
-};
-
-const ParentPortalPage: React.FC = () => {
-    // --- HOOKS (All at top level) ---
-    const { studentId } = useParams<{ studentId: string }>();
-    const navigate = useNavigate();
+const CommunicationPanel: React.FC<{
+    communications: PortalCommunication[];
+    student: PortalData['student'];
+    teacher: TeacherInfo;
+}> = ({ communications, student, teacher }) => {
     const toast = useToast();
     const queryClient = useQueryClient();
-    const accessCode = sessionStorage.getItem('portal_access_code');
-    const [activeSection, setActiveSection] = useState('summary');
     const [newMessage, setNewMessage] = useState('');
+    const [modalState, setModalState] = useState<{ type: 'closed' | 'edit' | 'delete', data: PortalCommunication | null }>({ type: 'closed', data: null });
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const [editingMessage, setEditingMessage] = useState<PortalCommunication | null>(null);
-    const [editedText, setEditedText] = useState('');
-    const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<PortalCommunication | null>(null);
 
-    // --- DATA FETCHING ---
-    const { data: portalData, isLoading, isError, error } = useQuery<PortalData>({
-        queryKey: ['portalData', studentId, accessCode],
-        queryFn: () => fetchPortalData(studentId!, accessCode!),
-        enabled: !!studentId && !!accessCode, // This correctly handles the case where accessCode might be null initially
-    });
-
-    // --- SIDE EFFECTS ---
-    useEffect(() => {
-        // Conditional logic is now safely inside useEffect
-        if (!accessCode) {
-            toast.error("Kode akses tidak ditemukan. Silakan login kembali.");
-            navigate('/portal-login', { replace: true });
-        }
-    }, [accessCode, navigate, toast]);
-
-    useEffect(() => {
-        if (portalData?.communications) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [portalData?.communications]);
-
-    // --- MUTATIONS ---
-    const sendMessageMutation = useMutation({
+    const { mutate: sendMessage, isPending: isSending } = useMutation({
         mutationFn: async (messageText: string) => {
-            if (!studentId || !accessCode || !portalData?.teacher?.user_id) throw new Error("Data tidak lengkap");
+            if (!student.access_code || !teacher) throw new Error("Informasi tidak lengkap untuk mengirim pesan.");
             const { error } = await supabase.rpc('send_parent_message', {
-                student_id_param: studentId,
-                access_code_param: accessCode,
+                student_id_param: student.id,
+                access_code_param: student.access_code,
                 message_param: messageText,
-                teacher_user_id_param: portalData.teacher.user_id,
+                teacher_user_id_param: teacher.user_id,
             });
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
+            queryClient.invalidateQueries({ queryKey: ['portalData', student.id] });
             setNewMessage('');
         },
-        onError: (err: Error) => toast.error(`Gagal mengirim pesan: ${err.message}`)
+        onError: (err: Error) => toast.error(`Gagal mengirim pesan: ${err.message}`),
     });
     
-    const updateMessageMutation = useMutation({
-        mutationFn: async ({ messageId, newText }: { messageId: string; newText: string }) => {
-            if (!studentId || !accessCode) throw new Error("Data otentikasi tidak lengkap");
+    const { mutate: updateMessage, isPending: isUpdating } = useMutation({
+        mutationFn: async ({ messageId, newMessageText }: { messageId: string, newMessageText: string }) => {
+            if (!student.access_code) throw new Error("Kode akses tidak valid.");
             const { error } = await supabase.rpc('update_parent_message', {
-                student_id_param: studentId,
-                access_code_param: accessCode,
+                student_id_param: student.id,
+                access_code_param: student.access_code,
                 message_id_param: messageId,
-                new_message_param: newText,
+                new_message_param: newMessageText
             });
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
-            setEditingMessage(null);
-            setEditedText('');
+            queryClient.invalidateQueries({ queryKey: ['portalData', student.id] });
             toast.success("Pesan berhasil diperbarui.");
+            setModalState({ type: 'closed', data: null });
         },
         onError: (err: Error) => toast.error(`Gagal memperbarui pesan: ${err.message}`),
     });
 
-    const deleteMessageMutation = useMutation({
+    const { mutate: deleteMessage, isPending: isDeleting } = useMutation({
         mutationFn: async (messageId: string) => {
-            if (!studentId || !accessCode) throw new Error("Data otentikasi tidak lengkap");
+            if (!student.access_code) throw new Error("Kode akses tidak valid.");
             const { error } = await supabase.rpc('delete_parent_message', {
-                student_id_param: studentId,
-                access_code_param: accessCode,
+                student_id_param: student.id,
+                access_code_param: student.access_code,
                 message_id_param: messageId,
             });
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['portalData', studentId, accessCode] });
-            setConfirmDeleteMessage(null);
+            queryClient.invalidateQueries({ queryKey: ['portalData', student.id] });
             toast.success("Pesan berhasil dihapus.");
+            setModalState({ type: 'closed', data: null });
         },
         onError: (err: Error) => toast.error(`Gagal menghapus pesan: ${err.message}`),
     });
 
-    // --- MEMOIZED VALUES ---
-    const attendanceSummary = useMemo(() => {
-        const summary = { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
-        portalData?.attendanceRecords.forEach(rec => { (summary as any)[rec.status]++; });
-        return summary;
-    }, [portalData?.attendanceRecords]);
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [communications]);
 
-    const totalViolationPoints = useMemo(() => portalData?.violations.reduce((sum, v) => sum + v.points, 0) || 0, [portalData?.violations]);
-    
-    // --- EVENT HANDLERS ---
-    const handleLogout = () => {
-        sessionStorage.removeItem('portal_access_code');
-        navigate('/portal-login', { replace: true });
-    };
-
-    const handleSendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newMessage.trim()) {
-            sendMessageMutation.mutate(newMessage);
-        }
-    };
-    
-    const handleStartEdit = (msg: PortalCommunication) => {
-        setEditingMessage(msg);
-        setEditedText(msg.message);
-    };
-
-    const handleCancelEdit = () => {
-        setEditingMessage(null);
-        setEditedText('');
-    };
-
-    const handleSaveEdit = () => {
-        if (editingMessage && editedText.trim()) {
-            updateMessageMutation.mutate({ messageId: editingMessage.id, newText: editedText.trim() });
-        }
-    };
-
-    const handleDeleteConfirm = () => {
-        if (confirmDeleteMessage) {
-            deleteMessageMutation.mutate(confirmDeleteMessage.id);
-        }
-    };
-    
-    // --- RENDER LOGIC ---
-    if (!accessCode) {
-        return (
-            <div className="flex items-center justify-center h-screen cosmic-bg">
-                <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
-    }
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-screen cosmic-bg">
-                <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
-                <p className="ml-4 text-lg text-white">Memuat data siswa...</p>
-            </div>
-        );
-    }
-
-    if (isError) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen cosmic-bg p-4 text-center">
-                <h2 className="text-2xl font-bold text-red-400">Gagal Memuat Data</h2>
-                <p className="text-gray-300 mt-2">Terjadi kesalahan: {error.message}</p>
-                <p className="text-gray-400 mt-1">Ini mungkin karena kode akses salah atau sudah tidak berlaku. Silakan coba login kembali.</p>
-                <Button onClick={handleLogout} className="mt-6"><LogoutIcon className="w-4 h-4 mr-2" />Kembali ke Login</Button>
-            </div>
-        );
-    }
-    
-    if (!portalData) return null;
-    
-    const { student, reports, attendanceRecords, academicRecords, violations, quizPoints, communications, teacher } = portalData;
-    
-    const navItems = [
-        { id: 'summary', label: 'Ringkasan', icon: LayoutGridIcon },
-        { id: 'grades', label: 'Nilai', icon: BarChartIcon },
-        { id: 'progress', label: 'Perkembangan', icon: TrendingUpIcon },
-        { id: 'attendance', label: 'Absensi', icon: CalendarIcon },
-        { id: 'violations', label: 'Pelanggaran', icon: ShieldAlertIcon },
-        { id: 'quizzes', label: 'Keaktifan', icon: SparklesIcon },
-        { id: 'reports', label: 'Catatan', icon: FileTextIcon },
-        { id: 'communication', label: 'Komunikasi', icon: MessageSquareIcon },
-    ];
-    const unreadMessages = communications.filter(m => m.sender === 'teacher' && !m.is_read).length;
-    
-    const renderContent = () => {
-        switch (activeSection) {
-            case 'summary':
-                return (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                             <button onClick={() => setActiveSection('attendance')} className="text-left w-full h-full">
-                                <SummaryCard icon={CheckCircleIcon} label="Total Kehadiran" value={`${attendanceSummary.Hadir} hari`} colorClass="bg-green-500" />
-                            </button>
-                            <button onClick={() => setActiveSection('violations')} className="text-left w-full h-full">
-                                <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-red-500" />
-                            </button>
-                            <button onClick={() => setActiveSection('grades')} className="text-left w-full h-full">
-                                <SummaryCard icon={BarChartIcon} label="Nilai Rata-Rata" value={academicRecords.length > 0 ? Math.round(academicRecords.reduce((sum, r) => sum + r.score, 0) / academicRecords.length) : 'N/A'} colorClass="bg-blue-500" />
-                            </button>
-                            <button onClick={() => setActiveSection('quizzes')} className="text-left w-full h-full">
-                                <SummaryCard icon={SparklesIcon} label="Poin Keaktifan" value={quizPoints.length} colorClass="bg-yellow-500" />
-                            </button>
-                        </div>
-                        <GlassCard>
-                            <CardHeader><CardTitle>Nilai Terbaru</CardTitle></CardHeader>
-                            <CardContent><GradesList records={[...academicRecords].slice(-4)} /></CardContent>
-                        </GlassCard>
-                    </div>
-                );
-            case 'grades': return <GlassCard className="animate-fade-in"><CardHeader><CardTitle>Semua Nilai Akademik</CardTitle></CardHeader><CardContent><GradesList records={academicRecords} /></CardContent></GlassCard>;
-            case 'progress': return (
-                <GlassCard className="animate-fade-in">
-                    <CardHeader><CardTitle>Grafik Perkembangan Nilai Akademik</CardTitle></CardHeader>
-                    <CardContent>
-                        <ProgressChart records={academicRecords} />
-                    </CardContent>
-                </GlassCard>
-            );
-            case 'attendance': return (
-                <GlassCard className="animate-fade-in">
-                    <CardHeader><CardTitle>Riwayat Absensi</CardTitle></CardHeader>
-                    <CardContent className="max-h-[60vh] overflow-y-auto">
-                        <div className="space-y-2">
-                        {[...attendanceRecords].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(rec => (
-                            <div key={rec.id} className="flex justify-between items-center p-3 bg-black/20 rounded-lg">
-                                <p className="font-semibold text-white">{new Date(rec.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                    rec.status === 'Hadir' ? 'bg-green-500/20 text-green-300' :
-                                    rec.status === 'Izin' ? 'bg-yellow-500/20 text-yellow-300' :
-                                    rec.status === 'Sakit' ? 'bg-blue-500/20 text-blue-300' :
-                                    'bg-red-500/20 text-red-300'
-                                }`}>{rec.status}</span>
-                            </div>
-                        ))}
-                        </div>
-                    </CardContent>
-                </GlassCard>
-            );
-            case 'violations': return (
-                <GlassCard className="animate-fade-in">
-                    <CardHeader><CardTitle>Riwayat Pelanggaran</CardTitle></CardHeader>
-                    <CardContent>
-                        {violations.length > 0 ? (<div className="space-y-3">{[...violations].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(v => (<div key={v.id} className="p-3 rounded-lg bg-red-900/20"><p className="font-semibold text-white">{v.description}</p><p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')} - <span className="font-bold text-red-400">{v.points} poin</span></p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><ShieldAlertIcon className="w-16 h-16 mx-auto mb-4 text-gray-500"/><h4 className="font-semibold">Tidak Ada Pelanggaran</h4><p>Siswa ini memiliki catatan perilaku yang bersih.</p></div>)}
-                    </CardContent>
-                </GlassCard>
-            );
-            case 'quizzes': return <GlassCard className="animate-fade-in"><CardHeader><CardTitle>Semua Poin Keaktifan</CardTitle></CardHeader><CardContent><QuizzesList records={quizPoints} /></CardContent></GlassCard>;
-            case 'reports': return (
-                <GlassCard className="animate-fade-in">
-                    <CardHeader><CardTitle>Catatan dari Guru</CardTitle></CardHeader>
-                    <CardContent>
-                        {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="p-4 rounded-lg bg-black/20"><h4 className="font-bold text-white">{r.title}</h4><p className="text-xs text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-300 whitespace-pre-wrap">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><FileTextIcon className="w-16 h-16 mx-auto mb-4 text-gray-500"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan khusus dari guru.</p></div>)}
-                    </CardContent>
-                </GlassCard>
-            );
-            case 'communication': return (
-                 <GlassCard className="animate-fade-in flex flex-col h-[70vh]">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-3">
-                            <MessageSquareIcon className="w-5 h-5 text-blue-400"/> Komunikasi dengan Wali Kelas
-                        </CardTitle>
-                    </CardHeader>
-                    <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-black/20">
-                        {communications.map(msg => (
-                            <div key={msg.id} className={`group flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
-                                {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
-                                {editingMessage?.id === msg.id ? (
-                                    <div className="flex-1 max-w-md p-2 rounded-2xl bg-blue-600">
-                                        <textarea
-                                            value={editedText}
-                                            onChange={(e) => setEditedText(e.target.value)}
-                                            className="w-full bg-blue-700 text-white p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                                            rows={3}
-                                            autoFocus
-                                        />
-                                        <div className="flex justify-end gap-2 mt-2">
-                                            <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Batal</Button>
-                                            <Button size="sm" onClick={handleSaveEdit} disabled={updateMessageMutation.isPending}>
-                                                {updateMessageMutation.isPending ? 'Menyimpan...' : 'Simpan'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className={`relative max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
-                                        <p className="whitespace-pre-wrap">{msg.message}</p>
-                                        <div className={`text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 text-right' : 'text-gray-400 text-right'}`}>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</div>
-                                        {msg.sender === 'parent' && (
-                                            <div className="absolute top-0 -left-20 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30" onClick={() => handleStartEdit(msg)}><PencilIcon className="w-3.5 h-3.5"/></Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30 text-red-400" onClick={() => setConfirmDeleteMessage(msg)}><TrashIcon className="w-3.5 h-3.5"/></Button>
-                                            </div>
-                                        )}
+    return (
+        <>
+            <GlassCard className="lg:col-span-2 flex flex-col h-[60vh]">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-3">
+                        <MessageSquareIcon className="w-6 h-6 text-blue-300" />
+                        Komunikasi dengan Guru
+                    </CardTitle>
+                </CardHeader>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {communications.map(msg => (
+                        <div key={msg.id} className={`group flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
+                            {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
+                            <div className={`relative max-w-md p-3 rounded-2xl text-sm ${msg.sender === 'parent' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-700 rounded-bl-none'}`}>
+                                <p className="whitespace-pre-wrap">{msg.message}</p>
+                                <div className={`flex items-center gap-1 text-xs mt-1 ${msg.sender === 'parent' ? 'text-blue-200 justify-end' : 'text-gray-400 justify-end'}`}>
+                                    <span>{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' })}</span>
+                                    {msg.sender === 'parent' && msg.is_read && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                                </div>
+                                {msg.sender === 'parent' && (
+                                    <div className="absolute top-0 -left-20 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30" onClick={() => setModalState({ type: 'edit', data: msg })}><PencilIcon className="w-3.5 h-3.5"/></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 bg-black/30 text-red-400" onClick={() => setModalState({ type: 'delete', data: msg })}><TrashIcon className="w-3.5 h-3.5"/></Button>
                                     </div>
                                 )}
-                                {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
                             </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                    </div>
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 flex items-center gap-2">
-                        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={sendMessageMutation.isPending}/>
-                        <Button type="submit" size="icon" disabled={!newMessage.trim() || sendMessageMutation.isPending}><SendIcon className="w-5 h-5" /></Button>
-                    </form>
-                </GlassCard>
-            );
-            default: return null;
-        }
-    };
-    
-    return (
-        <div className="min-h-screen cosmic-bg text-white p-4 sm:p-6 md:p-8">
-            <div className="max-w-6xl mx-auto">
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                    <div className="flex items-center gap-4">
-                        <img src={student.avatar_url || `https://i.pravatar.cc/150?u=${student.id}`} alt={student.name} className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-4 border-white/10 shadow-lg" />
-                        <div>
-                            <p className="text-sm text-indigo-200">Portal Siswa</p>
-                            <h1 className="text-2xl md:text-3xl font-bold text-white">{student.name}</h1>
-                            <p className="text-md text-gray-300">Kelas {student.classes.name}</p>
+                            {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
                         </div>
-                    </div>
-                    <Button variant="outline" onClick={handleLogout} className="bg-white/10 border-white/20 hover:bg-white/20">
-                        <LogoutIcon className="w-4 h-4 mr-2" /> Logout
-                    </Button>
-                </header>
-                
-                <main className="space-y-6">
-                    <div className="relative">
-                        <nav className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-                            {navItems.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setActiveSection(item.id)}
-                                    className={`relative flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${activeSection === item.id ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-300 bg-white/5 hover:bg-white/10 hover:text-white'}`}
-                                >
-                                    <item.icon className="w-5 h-5" />
-                                    <span>{item.label}</span>
-                                    {item.id === 'communication' && unreadMessages > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-gray-800">
-                                            {unreadMessages}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
-                        </nav>
-                        <div className="absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-gray-950 pointer-events-none sm:hidden"></div>
-                    </div>
-                    
-                    <section>
-                        {renderContent()}
-                    </section>
-                </main>
-            </div>
-             <Modal isOpen={!!confirmDeleteMessage} onClose={() => setConfirmDeleteMessage(null)} title="Konfirmasi Hapus Pesan">
-                <div className="space-y-4">
-                    <p>Apakah Anda yakin ingin menghapus pesan ini secara permanen?</p>
-                    <p className="text-sm italic p-3 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-600 dark:text-gray-300">
-                        "{confirmDeleteMessage?.message}"
-                    </p>
-                    <div className="flex justify-end gap-2">
-                        <Button variant="ghost" onClick={() => setConfirmDeleteMessage(null)}>Batal</Button>
-                        <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleteMessageMutation.isPending}>
-                            {deleteMessageMutation.isPending ? 'Menghapus...' : 'Hapus'}
-                        </Button>
-                    </div>
+                    ))}
+                    <div ref={messagesEndRef} />
                 </div>
-            </Modal>
-        </div>
+                <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessage(newMessage); }} className="p-4 border-t border-white/10 flex items-center gap-2">
+                    <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={isSending}/>
+                    <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}><SendIcon className="w-5 h-5" /></Button>
+                </form>
+            </GlassCard>
+
+            {modalState.type === 'edit' && modalState.data && (
+                <Modal title="Edit Pesan" isOpen={true} onClose={() => setModalState({ type: 'closed', data: null })}>
+                    <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); const message = formData.get('message') as string; updateMessage({ messageId: modalState.data!.id, newMessageText: message }); }}>
+                        <textarea name="message" defaultValue={modalState.data.message} rows={5} className="w-full mt-1 p-2 border rounded-md bg-white/10 border-white/20 text-white placeholder:text-gray-400"></textarea>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setModalState({ type: 'closed', data: null })}>Batal</Button>
+                            <Button type="submit" disabled={isUpdating}>{isUpdating ? "Menyimpan..." : "Simpan"}</Button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {modalState.type === 'delete' && modalState.data && (
+                <Modal title="Hapus Pesan" isOpen={true} onClose={() => setModalState({ type: 'closed', data: null })}>
+                    <p>Apakah Anda yakin ingin menghapus pesan ini?</p>
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button type="button" variant="ghost" onClick={() => setModalState({ type: 'closed', data: null })}>Batal</Button>
+                        <Button variant="destructive" onClick={() => deleteMessage(modalState.data!.id)} disabled={isDeleting}>{isDeleting ? "Menghapus..." : "Hapus"}</Button>
+                    </div>
+                </Modal>
+            )}
+        </>
     );
 };
 
-export default ParentPortalPage;
+
+export const ParentPortalPage: React.FC = () => {
+    const { studentId } = useParams<{ studentId: string }>();
+    const navigate = useNavigate();
+    const accessCode = sessionStorage.getItem('portal_access_code');
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+    const { data, isLoading, isError, error } = useQuery({
+        queryKey: ['portalData', studentId],
+        queryFn: () => fetchPortalData(studentId!, accessCode!),
+        enabled: !!studentId && !!accessCode,
+        retry: false,
+    });
+    
+    useEffect(() => {
+        if (!accessCode) {
+            navigate('/portal-login', { replace: true });
+        }
+        if (isError) {
+            console.error("Portal Data Fetch Error:", error);
+            sessionStorage.removeItem('portal_access_code');
+            navigate('/portal-login', { replace: true });
+        }
+    }, [accessCode, isError, error, navigate]);
+
+    const handleLogout = () => {
+        sessionStorage.removeItem('portal_access_code');
+        navigate('/', { replace: true });
+    };
+
+    const attendanceSummary = useMemo(() => {
+        if (!data) return { present: 0, absent: 0 };
+        return {
+            present: data.attendanceRecords.filter(r => r.status === 'Hadir').length,
+            absent: data.attendanceRecords.filter(r => r.status !== 'Hadir').length
+        }
+    }, [data]);
+    
+    const totalViolationPoints = useMemo(() => data?.violations.reduce((sum, v) => sum + v.points, 0) || 0, [data]);
+    const averageScore = useMemo(() => {
+        if (!data || data.academicRecords.length === 0) return 'N/A';
+        const total = data.academicRecords.reduce((sum, r) => sum + r.score, 0);
+        return Math.round(total / data.academicRecords.length);
+    }, [data]);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-screen cosmic-bg"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    }
+
+    if (!data) return null;
+    
+    const { student, academicRecords, violations, communications, teacher } = data;
+
+    return (
+        <div className="min-h-screen w-full cosmic-bg text-white font-sans flex">
+            {/* Sidebar */}
+            <aside id="portal-sidebar" className={`fixed lg:relative top-0 left-0 w-64 h-full bg-black/20 backdrop-blur-xl border-r border-white/10 z-30 transition-transform transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+                <div className="p-6 flex flex-col h-full">
+                    <div className="flex items-center gap-3 mb-10">
+                        <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center"><LayoutGridIcon className="w-6 h-6 text-purple-300" /></div>
+                        <div><h1 className="text-xl font-bold tracking-wider">Portal Siswa</h1></div>
+                    </div>
+                    <div className="text-center mb-8">
+                        <img src={student.avatar_url} alt={student.name} className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-white/10 shadow-lg"/>
+                        <h2 className="mt-4 text-xl font-bold">{student.name}</h2>
+                        <p className="text-sm text-gray-400">Kelas {student.classes.name}</p>
+                    </div>
+                    <div className="mt-auto">
+                        <Button variant="ghost" onClick={handleLogout} className="w-full justify-start gap-3 text-red-400 hover:bg-red-500/20 hover:text-red-300"><LogoutIcon className="w-5 h-5"/> Logout</Button>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
+                {/* Mobile Header */}
+                <header className="lg:hidden flex items-center justify-between mb-6">
+                    <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}><LayoutGridIcon className="w-6 h-6"/></Button>
+                    <h1 className="text-xl font-bold">Portal Siswa</h1>
+                    <div className="w-10"></div> {/* Spacer */}
+                </header>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-1 space-y-6">
+                        <GlassCard className="p-6 text-center">
+                            <h3 className="font-bold text-lg mb-4">Informasi Guru</h3>
+                            <img src={teacher?.avatar_url} alt={teacher?.name} className="w-20 h-20 rounded-full object-cover mx-auto border-4 border-white/10"/>
+                            <p className="mt-3 font-semibold">{teacher?.name}</p>
+                            <p className="text-xs text-gray-400">Wali Kelas</p>
+                        </GlassCard>
+                        <SummaryCard icon={BarChartIcon} label="Rata-rata Nilai" value={averageScore} colorClass="bg-gradient-to-br from-purple-500 to-indigo-500" />
+                        <SummaryCard icon={CheckCircleIcon} label="Kehadiran / Absen" value={`${attendanceSummary.present} / ${attendanceSummary.absent}`} colorClass="bg-gradient-to-br from-green-500 to-emerald-500" />
+                        <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-gradient-to-br from-red-500 to-orange-500" />
+                    </div>
+
+                    <CommunicationPanel communications={communications} student={student} teacher={teacher}/>
+                    
+                    <GlassCard className="lg:col-span-3">
+                        <CardHeader><CardTitle className="flex items-center gap-3"><GraduationCapIcon className="w-6 h-6 text-purple-300"/>Rincian Nilai Akademik</CardTitle></CardHeader>
+                        <CardContent className="overflow-x-auto">
+                            <table className="w-full min-w-[400px]">
+                                <thead><tr className="border-b border-white/10"><th className="p-3 text-left font-semibold">Mata Pelajaran</th><th className="p-3 text-center font-semibold">Nilai</th><th className="p-3 text-center font-semibold">Predikat</th></tr></thead>
+                                <tbody>
+                                    {academicRecords.map(r => {
+                                        const getScoreColor = (score: number) => score >= 75 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
+                                        return (<tr key={r.id} className="border-b border-white/10 last:border-b-0 hover:bg-white/5"><td className="p-3 font-medium">{r.subject}</td><td className={`p-3 text-center font-bold text-lg ${getScoreColor(r.score)}`}>{r.score}</td><td className="p-3 text-center">{r.score >= 86 ? 'A' : r.score >= 76 ? 'B' : r.score >= 66 ? 'C' : 'D'}</td></tr>)
+                                    })}
+                                </tbody>
+                            </table>
+                        </CardContent>
+                    </GlassCard>
+                </div>
+            </main>
+        </div>
+    );
+};
