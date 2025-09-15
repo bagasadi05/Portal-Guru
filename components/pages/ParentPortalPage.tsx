@@ -6,9 +6,10 @@ import { useToast } from '../../hooks/useToast';
 import { Database } from '../../services/database.types';
 import { CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, FileTextIcon, SparklesIcon, CalendarIcon, TrendingUpIcon, MessageSquareIcon, SendIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, GraduationCapIcon, LayoutGridIcon, PencilIcon, TrashIcon } from '../Icons';
+import { LogoutIcon, BarChartIcon, CheckCircleIcon, ShieldAlertIcon, SparklesIcon, CalendarIcon, MessageSquareIcon, SendIcon, UsersIcon, GraduationCapIcon, PencilIcon, TrashIcon } from '../Icons';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
 
 type PortalRpcResult = Database['public']['Functions']['get_student_portal_data']['Returns'][number];
 type PortalStudentInfo = PortalRpcResult['student'];
@@ -71,19 +72,42 @@ const GlassCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, 
     />
 );
 
-const SummaryCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, colorClass: string }> = ({ icon: Icon, label, value, colorClass }) => (
-    <GlassCard className="p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-purple-400/50 cursor-pointer h-full">
-        <div className="flex items-center gap-4">
-            <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center ${colorClass}`}>
-                 <Icon className="w-6 h-6 text-white" />
+const PortalHeader: React.FC<{ student: PortalData['student'], onLogout: () => void }> = ({ student, onLogout }) => (
+    <header className="p-4 sm:p-6 sticky top-0 z-20 bg-gray-950/70 backdrop-blur-md border-b border-white/10">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                    <GraduationCapIcon className="w-6 h-6 text-purple-300" />
+                </div>
+                <h1 className="text-xl font-bold tracking-wider hidden sm:block">Portal Siswa</h1>
             </div>
-            <div>
-                <p className="text-2xl font-bold text-white">{value}</p>
-                <p className="text-sm text-gray-400">{label}</p>
+            <div className="flex items-center gap-4">
+                <div>
+                    <p className="font-bold text-right">{student.name}</p>
+                    <p className="text-sm text-gray-400 text-right">Kelas {student.classes.name}</p>
+                </div>
+                <img src={student.avatar_url} alt={student.name} className="w-12 h-12 rounded-full object-cover border-2 border-white/10"/>
+                <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Logout">
+                    <LogoutIcon className="w-5 h-5"/>
+                </Button>
             </div>
         </div>
-    </GlassCard>
+    </header>
 );
+
+const StatCard: React.FC<{ icon: React.ElementType, label: string, value: string | number, colorClass: string }> = ({ icon: Icon, label, value, colorClass }) => (
+    <div className={`relative p-5 rounded-2xl overflow-hidden bg-white/5 border border-white/10 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${colorClass.replace('bg-gradient-to-br', 'hover:shadow-purple-500/30')}`}>
+        <div className={`absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-10 ${colorClass.replace('from-', 'bg-')}`}></div>
+        <div className="relative z-10">
+            <div className={`w-12 h-12 rounded-xl mb-4 flex items-center justify-center ${colorClass}`}>
+                <Icon className="w-6 h-6 text-white"/>
+            </div>
+            <p className="text-3xl font-bold text-white">{value}</p>
+            <p className="text-sm text-gray-300 mt-1">{label}</p>
+        </div>
+    </div>
+);
+
 
 const CommunicationPanel: React.FC<{
     communications: PortalCommunication[];
@@ -157,14 +181,8 @@ const CommunicationPanel: React.FC<{
 
     return (
         <>
-            <GlassCard className="lg:col-span-2 flex flex-col h-[60vh]">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-3">
-                        <MessageSquareIcon className="w-6 h-6 text-blue-300" />
-                        Komunikasi dengan Guru
-                    </CardTitle>
-                </CardHeader>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex flex-col h-[60vh]">
+                <div ref={messagesEndRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                     {communications.map(msg => (
                         <div key={msg.id} className={`group flex items-start gap-3 ${msg.sender === 'parent' ? 'justify-end' : 'justify-start'}`}>
                             {msg.sender === 'teacher' && <img src={teacher?.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="Guru"/>}
@@ -184,13 +202,12 @@ const CommunicationPanel: React.FC<{
                             {msg.sender === 'parent' && <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UsersIcon className="w-5 h-5 text-gray-300" /></div>}
                         </div>
                     ))}
-                    <div ref={messagesEndRef} />
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); if (newMessage.trim()) sendMessage(newMessage); }} className="p-4 border-t border-white/10 flex items-center gap-2">
                     <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Ketik pesan..." className="flex-1" disabled={isSending}/>
                     <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}><SendIcon className="w-5 h-5" /></Button>
                 </form>
-            </GlassCard>
+            </div>
 
             {modalState.type === 'edit' && modalState.data && (
                 <Modal title="Edit Pesan" isOpen={true} onClose={() => setModalState({ type: 'closed', data: null })}>
@@ -222,7 +239,6 @@ export const ParentPortalPage: React.FC = () => {
     const { studentId } = useParams<{ studentId: string }>();
     const navigate = useNavigate();
     const accessCode = sessionStorage.getItem('portal_access_code');
-    const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     const { data, isLoading, isError, error } = useQuery({
         queryKey: ['portalData', studentId],
@@ -268,67 +284,110 @@ export const ParentPortalPage: React.FC = () => {
 
     if (!data) return null;
     
-    const { student, academicRecords, violations, communications, teacher } = data;
+    const { student, academicRecords, violations, communications, teacher, quizPoints, attendanceRecords } = data;
 
     return (
-        <div className="min-h-screen w-full cosmic-bg text-white font-sans flex">
-            {/* Sidebar */}
-            <aside id="portal-sidebar" className={`fixed lg:relative top-0 left-0 w-64 h-full bg-black/20 backdrop-blur-xl border-r border-white/10 z-30 transition-transform transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-                <div className="p-6 flex flex-col h-full">
-                    <div className="flex items-center gap-3 mb-10">
-                        <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center"><LayoutGridIcon className="w-6 h-6 text-purple-300" /></div>
-                        <div><h1 className="text-xl font-bold tracking-wider">Portal Siswa</h1></div>
-                    </div>
-                    <div className="text-center mb-8">
-                        <img src={student.avatar_url} alt={student.name} className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-white/10 shadow-lg"/>
-                        <h2 className="mt-4 text-xl font-bold">{student.name}</h2>
-                        <p className="text-sm text-gray-400">Kelas {student.classes.name}</p>
-                    </div>
-                    <div className="mt-auto">
-                        <Button variant="ghost" onClick={handleLogout} className="w-full justify-start gap-3 text-red-400 hover:bg-red-500/20 hover:text-red-300"><LogoutIcon className="w-5 h-5"/> Logout</Button>
-                    </div>
-                </div>
-            </aside>
+        <div className="min-h-screen w-full cosmic-bg text-white font-sans">
+            <PortalHeader student={student} onLogout={handleLogout} />
 
-            {/* Main Content */}
-            <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-                {/* Mobile Header */}
-                <header className="lg:hidden flex items-center justify-between mb-6">
-                    <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}><LayoutGridIcon className="w-6 h-6"/></Button>
-                    <h1 className="text-xl font-bold">Portal Siswa</h1>
-                    <div className="w-10"></div> {/* Spacer */}
-                </header>
+            <main className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+                {/* Summary Section */}
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <StatCard icon={BarChartIcon} label="Rata-rata Nilai" value={averageScore} colorClass="bg-gradient-to-br from-purple-500 to-indigo-500" />
+                    <StatCard icon={CheckCircleIcon} label="Total Hadir" value={attendanceSummary.present} colorClass="bg-gradient-to-br from-green-500 to-emerald-500" />
+                    <StatCard icon={CalendarIcon} label="Total Absen" value={attendanceSummary.absent} colorClass="bg-gradient-to-br from-yellow-500 to-orange-500" />
+                    <StatCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-gradient-to-br from-red-500 to-rose-500" />
+                </section>
+                
+                {/* Tabbed Content */}
+                <GlassCard>
+                    <Tabs defaultValue="akademik" className="w-full">
+                        <div className="p-2 border-b border-white/10">
+                            <TabsList className="bg-black/20">
+                                <TabsTrigger value="akademik">Akademik</TabsTrigger>
+                                <TabsTrigger value="perilaku">Perilaku & Kehadiran</TabsTrigger>
+                                <TabsTrigger value="komunikasi">Komunikasi</TabsTrigger>
+                            </TabsList>
+                        </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-1 space-y-6">
-                        <GlassCard className="p-6 text-center">
-                            <h3 className="font-bold text-lg mb-4">Informasi Guru</h3>
-                            <img src={teacher?.avatar_url} alt={teacher?.name} className="w-20 h-20 rounded-full object-cover mx-auto border-4 border-white/10"/>
-                            <p className="mt-3 font-semibold">{teacher?.name}</p>
-                            <p className="text-xs text-gray-400">Wali Kelas</p>
-                        </GlassCard>
-                        <SummaryCard icon={BarChartIcon} label="Rata-rata Nilai" value={averageScore} colorClass="bg-gradient-to-br from-purple-500 to-indigo-500" />
-                        <SummaryCard icon={CheckCircleIcon} label="Kehadiran / Absen" value={`${attendanceSummary.present} / ${attendanceSummary.absent}`} colorClass="bg-gradient-to-br from-green-500 to-emerald-500" />
-                        <SummaryCard icon={ShieldAlertIcon} label="Poin Pelanggaran" value={totalViolationPoints} colorClass="bg-gradient-to-br from-red-500 to-orange-500" />
-                    </div>
+                        {/* Academic Tab */}
+                        <TabsContent value="akademik" className="p-6">
+                            <h3 className="text-xl font-bold mb-4">Hasil Belajar</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {academicRecords.length > 0 ? academicRecords.map(r => {
+                                    const scoreColor = r.score >= 75 ? 'text-green-400' : r.score >= 60 ? 'text-yellow-400' : 'text-red-400';
+                                    const borderColor = r.score >= 75 ? 'border-green-500/30' : r.score >= 60 ? 'border-yellow-500/30' : 'border-red-500/30';
+                                    return (
+                                        <div key={r.id} className={`p-4 rounded-xl border ${borderColor} bg-white/5`}>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-bold text-lg">{r.subject}</p>
+                                                    <p className="text-xs text-gray-400">{r.notes}</p>
+                                                </div>
+                                                <p className={`font-black text-4xl ${scoreColor}`}>{r.score}</p>
+                                            </div>
+                                        </div>
+                                    )
+                                }) : <p className="text-gray-400 md:col-span-2">Belum ada data nilai akademik.</p>}
+                            </div>
+                            
+                            <h3 className="text-xl font-bold mt-8 mb-4">Poin Keaktifan</h3>
+                            <div className="space-y-2">
+                               {quizPoints.length > 0 ? quizPoints.map(qp => (
+                                   <div key={qp.id} className="p-3 rounded-lg bg-white/5 flex items-center gap-3">
+                                       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center"><SparklesIcon className="w-5 h-5 text-green-300"/></div>
+                                       <div>
+                                            <p className="font-semibold">{qp.quiz_name}</p>
+                                            <p className="text-xs text-gray-400">{new Date(qp.quiz_date).toLocaleDateString('id-ID')}</p>
+                                       </div>
+                                   </div>
+                               )) : <p className="text-gray-400">Belum ada poin keaktifan yang tercatat.</p>}
+                            </div>
+                        </TabsContent>
 
-                    <CommunicationPanel communications={communications} student={student} teacher={teacher}/>
-                    
-                    <GlassCard className="lg:col-span-3">
-                        <CardHeader><CardTitle className="flex items-center gap-3"><GraduationCapIcon className="w-6 h-6 text-purple-300"/>Rincian Nilai Akademik</CardTitle></CardHeader>
-                        <CardContent className="overflow-x-auto">
-                            <table className="w-full min-w-[400px]">
-                                <thead><tr className="border-b border-white/10"><th className="p-3 text-left font-semibold">Mata Pelajaran</th><th className="p-3 text-center font-semibold">Nilai</th><th className="p-3 text-center font-semibold">Predikat</th></tr></thead>
-                                <tbody>
-                                    {academicRecords.map(r => {
-                                        const getScoreColor = (score: number) => score >= 75 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
-                                        return (<tr key={r.id} className="border-b border-white/10 last:border-b-0 hover:bg-white/5"><td className="p-3 font-medium">{r.subject}</td><td className={`p-3 text-center font-bold text-lg ${getScoreColor(r.score)}`}>{r.score}</td><td className="p-3 text-center">{r.score >= 86 ? 'A' : r.score >= 76 ? 'B' : r.score >= 66 ? 'C' : 'D'}</td></tr>)
-                                    })}
-                                </tbody>
-                            </table>
-                        </CardContent>
-                    </GlassCard>
-                </div>
+                        {/* Behavior & Attendance Tab */}
+                        <TabsContent value="perilaku" className="p-6">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4">Catatan Pelanggaran</h3>
+                                    <div className="space-y-3">
+                                        {violations.length > 0 ? violations.map(v => (
+                                            <div key={v.id} className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                                                <p className="font-semibold">{v.description}</p>
+                                                <p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString('id-ID')} - <span className="font-bold text-red-400">{v.points} poin</span></p>
+                                            </div>
+                                        )) : <p className="text-gray-400">Tidak ada catatan pelanggaran. Perilaku siswa sangat baik.</p>}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4">Riwayat Kehadiran</h3>
+                                    <div className="space-y-2">
+                                        {attendanceRecords.length > 0 ? [...attendanceRecords].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10).map(att => { // Show last 10
+                                            const statusInfo = {
+                                                'Hadir': { color: 'text-green-400', bg: 'bg-green-500/10' },
+                                                'Izin': { color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+                                                'Sakit': { color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                                                'Alpha': { color: 'text-red-400', bg: 'bg-red-500/10' },
+                                            }[att.status];
+                                            return (
+                                                <div key={att.id} className={`p-3 rounded-lg flex justify-between items-center ${statusInfo?.bg}`}>
+                                                    <p className="font-medium">{new Date(att.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                                                    <p className={`font-bold text-sm px-2 py-0.5 rounded-full ${statusInfo?.color}`}>{att.status}</p>
+                                                </div>
+                                            )
+                                        }) : <p className="text-gray-400">Belum ada data kehadiran.</p>}
+                                         {attendanceRecords.length > 10 && <p className="text-xs text-center text-gray-500 mt-2">Menampilkan 10 catatan terakhir...</p>}
+                                    </div>
+                                </div>
+                             </div>
+                        </TabsContent>
+
+                        {/* Communication Tab */}
+                        <TabsContent value="komunikasi">
+                            <CommunicationPanel communications={communications} student={student} teacher={teacher}/>
+                        </TabsContent>
+                    </Tabs>
+                </GlassCard>
             </main>
         </div>
     );

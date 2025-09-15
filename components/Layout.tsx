@@ -207,7 +207,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }, []);
   
     return (
-        <div className="flex h-screen bg-transparent text-gray-900 dark:text-gray-100">
+        <div className="fixed inset-0 flex bg-transparent text-gray-900 dark:text-gray-100">
             {/* Desktop Sidebar */}
             <div className="hidden md:flex">
                 <Sidebar />
