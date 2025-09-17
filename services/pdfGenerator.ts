@@ -109,14 +109,14 @@ export const generateStudentReport = (
         doc.text('A. Capaian Akademik', margin, y); y += 6;
         const academicBody = academicRecords.map((r, i) => {
             const predicateInfo = getPredicate(r.score);
-            return [i + 1, r.subject, r.score, predicateInfo.predikat, r.notes || predicateInfo.deskripsi];
+            return [i + 1, r.subject, r.assessment_name || '-', r.score, predicateInfo.predikat, r.notes || predicateInfo.deskripsi];
         });
         autoTable(doc, {
             startY: y,
-            head: [['No', 'Mata Pelajaran', 'Nilai', 'Predikat', 'Deskripsi Capaian Kompetensi']],
+            head: [['No', 'Mata Pelajaran', 'Bentuk Penilaian', 'Nilai', 'Predikat', 'Deskripsi Capaian Kompetensi']],
             body: academicBody,
             ...tableTheme,
-            columnStyles: { 0: { cellWidth: 8 }, 2: { cellWidth: 12 }, 3: { cellWidth: 15 }, 4: { cellWidth: 'auto' } }
+            columnStyles: { 0: { cellWidth: 8 }, 2: { cellWidth: 25 }, 3: { cellWidth: 12 }, 4: { cellWidth: 15 }, 5: { cellWidth: 'auto' } }
         });
         y = (doc as any).lastAutoTable.finalY + 8;
     }

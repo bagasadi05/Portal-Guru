@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -78,6 +80,8 @@ const SchedulePage: React.FC = () => {
     const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
 
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [confirmModalState, setConfirmModalState] = useState<{ isOpen: boolean; data: ScheduleRow | null }>({ isOpen: false, data: null });
+
 
     useEffect(() => {
         const timerId = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
@@ -151,10 +155,15 @@ const SchedulePage: React.FC = () => {
         }
     };
 
-    const handleDeleteSchedule = (id: string) => {
-        if (window.confirm('Apakah Anda yakin ingin menghapus jadwal ini?')) {
-            deleteScheduleMutation.mutate(id);
+    const handleDeleteClick = (item: ScheduleRow) => {
+        setConfirmModalState({ isOpen: true, data: item });
+    };
+
+    const handleConfirmDelete = () => {
+        if (confirmModalState.data) {
+            deleteScheduleMutation.mutate(confirmModalState.data.id);
         }
+        setConfirmModalState({ isOpen: false, data: null });
     };
     
     const handleAnalyzeSchedule = async () => {
@@ -505,7 +514,7 @@ const SchedulePage: React.FC = () => {
                                             >
                                                 <div className="absolute top-2 right-2 flex space-x-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={() => handleOpenEditModal(item)} className="p-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" aria-label="Edit jadwal" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></button>
-                                                    <button onClick={() => handleDeleteSchedule(item.id)} className="p-1.5 rounded-full text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white transition-colors" aria-label="Hapus jadwal" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></button>
+                                                    <button onClick={() => handleDeleteClick(item)} className="p-1.5 rounded-full text-red-400 bg-white/10 hover:bg-red-500/50 hover:text-white transition-colors" aria-label="Hapus jadwal" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></button>
                                                 </div>
                                                 <p className={`font-bold text-base mb-1 text-white ${isPastOnToday ? 'line-through' : ''}`}>{item.subject}</p>
                                                 <p className="text-sm text-gray-300 flex items-center gap-2"><GraduationCapIcon className="w-4 h-4 text-purple-400"/>Kelas {item.class_id}</p>
@@ -551,6 +560,24 @@ const SchedulePage: React.FC = () => {
                     <FormInputWrapper label="Kelas" icon={GraduationCapIcon}><Input value={formData.class_id} onChange={e => setFormData(p => ({...p, class_id: e.target.value}))} required className={`w-full ${inputStyles}`} placeholder="cth. 7A" /></FormInputWrapper>
                     <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={handleCloseModal} disabled={scheduleMutation.isPending}>Batal</Button><Button type="submit" disabled={scheduleMutation.isPending || !isOnline}>{scheduleMutation.isPending ? 'Menyimpan...' : 'Simpan'}</Button></div>
                 </form>
+            </Modal>
+
+            <Modal 
+                title="Konfirmasi Hapus Jadwal" 
+                isOpen={confirmModalState.isOpen} 
+                onClose={() => setConfirmModalState({ isOpen: false, data: null })}
+            >
+                <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Apakah Anda yakin ingin menghapus jadwal <strong>{confirmModalState.data?.subject}</strong> untuk kelas <strong>{confirmModalState.data?.class_id}</strong>?
+                    </p>
+                    <div className="flex justify-end gap-2 pt-4 mt-4">
+                        <Button variant="ghost" onClick={() => setConfirmModalState({ isOpen: false, data: null })} disabled={deleteScheduleMutation.isPending}>Batal</Button>
+                        <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteScheduleMutation.isPending}>
+                            {deleteScheduleMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
+                        </Button>
+                    </div>
+                </div>
             </Modal>
 
             <Modal title="Analisis Jadwal AI" isOpen={isAnalysisModalOpen} onClose={() => setAnalysisModalOpen(false)} icon={<BrainCircuitIcon className="h-5 w-5"/>}>

@@ -23,6 +23,7 @@ export type Database = {
           notes: string;
           user_id: string;
           created_at: string;
+          assessment_name: string | null;
         };
         Insert: {
           id?: string;
@@ -32,6 +33,7 @@ export type Database = {
           notes: string;
           user_id: string;
           created_at?: string;
+          assessment_name?: string | null;
         };
         Update: {
           id?: string;
@@ -41,6 +43,7 @@ export type Database = {
           notes?: string;
           user_id?: string;
           created_at?: string;
+          assessment_name?: string | null;
         };
         // FIX: Add Relationships property to conform to Supabase type definitions.
         Relationships: []
@@ -350,6 +353,7 @@ export type Database = {
             score: number
             notes: string
             created_at: string
+            assessment_name: string | null
           }[]
           violations: {
             id: string

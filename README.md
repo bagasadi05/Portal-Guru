@@ -15,6 +15,14 @@ Gunakan skrip SQL di bawah ini untuk memperbaiki masalah akses data dan mengakti
 Salin dan tempelkan konten berikut ke dalam file migrasi Supabase baru Anda (misalnya, `supabase/migrations/<timestamp>_fix_parent_portal_functions_v3.sql`).
 
 ```sql
+-- Skrip untuk menambahkan kolom 'assessment_name' ke tabel academic_records
+-- Ini diperlukan untuk fitur penilaian per-bab (PH).
+ALTER TABLE public.academic_records
+ADD COLUMN IF NOT EXISTS assessment_name TEXT;
+
+COMMENT ON COLUMN public.academic_records.assessment_name IS 'Nama penilaian spesifik, cth., "PH 1", "UTS".';
+
+
 -- Hapus semua fungsi lama yang berpotensi konflik untuk memastikan awal yang bersih.
 -- Ini mengatasi galat "could not choose best candidate function" dengan menghapus semua definisi yang ambigu.
 DROP FUNCTION IF EXISTS public.get_student_portal_data(uuid, text);

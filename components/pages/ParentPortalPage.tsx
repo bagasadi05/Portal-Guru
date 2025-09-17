@@ -322,7 +322,8 @@ export const ParentPortalPage: React.FC = () => {
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <p className="font-bold text-lg">{r.subject}</p>
-                                                    <p className="text-xs text-gray-400">{r.notes}</p>
+                                                    <p className="text-sm text-purple-300 -mt-1 font-semibold">{r.assessment_name || 'Penilaian Umum'}</p>
+                                                    <p className="text-xs text-gray-400 mt-2">{r.notes}</p>
                                                 </div>
                                                 <p className={`font-black text-4xl ${scoreColor}`}>{r.score}</p>
                                             </div>

@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -186,6 +188,7 @@ const TasksPage: React.FC = () => {
     const [modalState, setModalState] = useState<{ isOpen: boolean; mode: 'add' | 'edit'; data: Task | null }>({ isOpen: false, mode: 'add', data: null });
     const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
     const [draggedOverStatus, setDraggedOverStatus] = useState<TaskStatus | null>(null);
+    const [confirmDeleteModal, setConfirmDeleteModal] = useState<Task | null>(null);
 
     const { data: tasks = [], isLoading } = useQuery({
         queryKey: ['tasks', user?.id],
@@ -293,6 +296,20 @@ const TasksPage: React.FC = () => {
         taskMutation.mutate({ mode: 'add', data: { title, user_id: user!.id, status: 'todo' } });
     };
 
+    const handleDeleteClick = (id: string) => {
+        const taskToDelete = tasks.find(t => t.id === id);
+        if (taskToDelete) {
+            setConfirmDeleteModal(taskToDelete);
+        }
+    };
+
+    const handleConfirmDelete = () => {
+        if (confirmDeleteModal) {
+            deleteMutation.mutate(confirmDeleteModal.id);
+            setConfirmDeleteModal(null);
+        }
+    };
+
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
         if (!isOnline) return;
         setDraggedTaskId(id);
@@ -366,7 +383,7 @@ const TasksPage: React.FC = () => {
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
                         onTaskEdit={(t) => setModalState({ isOpen: true, mode: 'edit', data: t })}
-                        onTaskDelete={(id) => deleteMutation.mutate(id)}
+                        onTaskDelete={handleDeleteClick}
                         onStatusChange={handleStatusChange}
                         onQuickAdd={handleQuickAdd}
                         draggedOverStatus={draggedOverStatus}
@@ -394,6 +411,25 @@ const TasksPage: React.FC = () => {
                         <Button type="submit" disabled={taskMutation.isPending || !isOnline}>{taskMutation.isPending ? 'Menyimpan...' : 'Simpan'}</Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal 
+                title="Konfirmasi Hapus Tugas"
+                isOpen={!!confirmDeleteModal}
+                onClose={() => setConfirmDeleteModal(null)}
+            >
+                <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Apakah Anda yakin ingin menghapus tugas ini?
+                        <strong className="block mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded">"{confirmDeleteModal?.title}"</strong>
+                    </p>
+                    <div className="flex justify-end gap-2 pt-4 mt-4">
+                        <Button variant="ghost" onClick={() => setConfirmDeleteModal(null)} disabled={deleteMutation.isPending}>Batal</Button>
+                        <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteMutation.isPending}>
+                            {deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
+                        </Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

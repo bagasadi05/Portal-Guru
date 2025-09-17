@@ -182,8 +182,22 @@ const StatCard: React.FC<{ icon: React.FC<any>, label: string, value: string | n
     </Card>
 );
 
-const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: AcademicRecordRow) => void, onDelete: (recordId: string) => void, isOnline: boolean }> = ({ records, onEdit, onDelete, isOnline }) => {
-    if (!records || records.length === 0) {
+const GradesPanel: React.FC<{ records: AcademicRecordRow[], onEdit: (record: AcademicRecordRow) => void, onDelete: (recordId: string) => void, isOnline: boolean }> = ({ records, onEdit, onDelete, isOnline }) => {
+    const recordsBySubject = useMemo(() => {
+        if (!records || records.length === 0) return {};
+        return records.reduce((acc, record) => {
+            const subject = record.subject || 'Tanpa Mapel';
+            if (!acc[subject]) {
+                acc[subject] = [];
+            }
+            acc[subject].push(record);
+            return acc;
+        }, {} as Record<string, AcademicRecordRow[]>);
+    }, [records]);
+
+    const subjects = Object.keys(recordsBySubject).sort();
+
+    if (subjects.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
                 <BarChartIcon className="w-16 h-16 mb-4 text-gray-600" />
@@ -193,37 +207,55 @@ const GradesHistory: React.FC<{ records: AcademicRecordRow[], onEdit: (record: A
         );
     }
 
-    const sortedRecords = [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
     const getScoreColorClasses = (score: number) => {
-        if (score >= 85) return { bg: 'bg-green-900/30', border: 'border-green-600', scoreBg: 'bg-green-500' };
-        if (score >= 70) return { bg: 'bg-yellow-900/30', border: 'border-yellow-600', scoreBg: 'bg-yellow-500' };
-        return { bg: 'bg-red-900/30', border: 'border-red-600', scoreBg: 'bg-red-500' };
+        if (score >= 85) return { border: 'border-green-600/50', text: 'text-green-400' };
+        if (score >= 70) return { border: 'border-yellow-600/50', text: 'text-yellow-400' };
+        return { border: 'border-red-600/50', text: 'text-red-400' };
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sortedRecords.map((record) => {
-                const colors = getScoreColorClasses(record.score);
+        <div className="space-y-6">
+            {subjects.map((subject) => {
+                const subjectRecords = [...recordsBySubject[subject]].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const averageScore = subjectRecords.length > 0 ? Math.round(subjectRecords.reduce((sum, r) => sum + r.score, 0) / subjectRecords.length) : 0;
+                
                 return (
-                    <div key={record.id} className={`group relative p-4 rounded-xl border-2 ${colors.border} ${colors.bg} hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-1`}>
-                        <div className="flex items-center gap-4">
-                             <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center font-black text-3xl text-white ${colors.scoreBg} shadow-inner`}>
-                                {record.score}
+                    <Card key={subject} className="bg-black/20">
+                        <CardHeader className="border-b border-white/10">
+                            <div className="flex justify-between items-center">
+                                <CardTitle>{subject}</CardTitle>
+                                <div className="text-right">
+                                    <p className="text-2xl font-bold">{averageScore}</p>
+                                    <p className="text-sm text-gray-400">Rata-rata</p>
+                                </div>
                             </div>
-                            <div className="flex-grow">
-                                <h4 className="font-extrabold text-lg text-white">{record.subject}</h4>
-                                <p className="text-xs text-gray-400 font-medium">
-                                    {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                </p>
-                            </div>
-                        </div>
-                        {record.notes && <p className="text-sm text-gray-400 mt-3 pt-3 border-t-2 border-dashed border-white/10 italic">"{record.notes}"</p>}
-                         <div className="absolute top-3 right-3 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/30 backdrop-blur-sm" onClick={() => onEdit(record)} aria-label="Edit Catatan Akademik" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 bg-black/30 backdrop-blur-sm" onClick={() => onDelete(record.id)} aria-label="Hapus Catatan Akademik" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
-                        </div>
-                    </div>
+                        </CardHeader>
+                        <CardContent className="divide-y divide-white/10 p-0">
+                            {subjectRecords.map((record) => {
+                                const colors = getScoreColorClasses(record.score);
+                                return (
+                                    <div key={record.id} className="group relative p-4 hover:bg-white/5">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center font-black text-2xl border-2 ${colors.border} ${colors.text} shadow-inner`}>
+                                                {record.score}
+                                            </div>
+                                            <div className="flex-grow">
+                                                <h4 className="font-bold text-base text-white">{record.assessment_name || 'Penilaian'}</h4>
+                                                <p className="text-xs text-gray-400 font-medium">
+                                                    {new Date(record.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </p>
+                                                {record.notes && <p className="text-sm text-gray-400 mt-1 italic">"{record.notes}"</p>}
+                                            </div>
+                                        </div>
+                                        <div className="absolute top-3 right-3 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/30 backdrop-blur-sm" onClick={() => onEdit(record)} aria-label="Edit Catatan Akademik" disabled={!isOnline}><PencilIcon className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 bg-black/30 backdrop-blur-sm" onClick={() => onDelete(record.id)} aria-label="Hapus Catatan Akademik" disabled={!isOnline}><TrashIcon className="h-4 w-4" /></Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </CardContent>
+                    </Card>
                 );
             })}
         </div>
@@ -500,6 +532,7 @@ const StudentDetailPage = () => {
             case 'academic':
                 const academicPayload = {
                     subject: rawData.subject as string,
+                    assessment_name: rawData.assessment_name as string,
                     score: Number(rawData.score),
                     notes: rawData.notes as string,
                     student_id: studentId,
@@ -731,7 +764,7 @@ const StudentDetailPage = () => {
                             <div><CardTitle>Nilai Akademik</CardTitle><CardDescription>Daftar nilai sumatif atau formatif yang telah diinput.</CardDescription></div>
                             <Button onClick={() => setModalState({ type: 'academic', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Nilai</Button>
                           </div>
-                          <GradesHistory records={academicRecords} onEdit={(r) => setModalState({type: 'academic', data: r})} onDelete={(id) => handleDelete('academic_records', id)} isOnline={isOnline} />
+                          <GradesPanel records={academicRecords} onEdit={(r) => setModalState({type: 'academic', data: r})} onDelete={(id) => handleDelete('academic_records', id)} isOnline={isOnline} />
                       </TabsContent>
                       <TabsContent value="activity" className="p-6">
                           <div className="flex justify-between items-center mb-4">
@@ -899,7 +932,10 @@ const StudentDetailPage = () => {
                              <div><label>Catatan</label><textarea name="notes" rows={4} defaultValue={modalState.data?.notes || ''} className="w-full mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600" required></textarea></div>
                         </>}
                         {modalState.type === 'academic' && <>
-                            <div><label>Mata Pelajaran</label><Input name="subject" defaultValue={modalState.data?.subject || ''} placeholder="cth. Matematika" required/></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label>Mata Pelajaran</label><Input name="subject" defaultValue={modalState.data?.subject || ''} placeholder="cth. Matematika" required/></div>
+                                <div><label>Nama Penilaian</label><Input name="assessment_name" defaultValue={modalState.data?.assessment_name || ''} placeholder="cth. PH 1, UTS" required/></div>
+                            </div>
                             <div><label>Nilai (0-100)</label><Input name="score" type="number" min="0" max="100" defaultValue={modalState.data?.score || 0} required/></div>
                             <div><label>Catatan (Opsional)</label><textarea name="notes" rows={3} defaultValue={modalState.data?.notes || ''} placeholder="cth. Sangat baik dalam materi aljabar." className="w-full mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600"></textarea></div>
                         </>}

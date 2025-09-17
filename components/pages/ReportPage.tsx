@@ -212,6 +212,7 @@ const ReportPage: React.FC = () => {
         setEditableAcademicRecords(prev => [...prev, {
             id: `new-${Date.now()}`,
             subject: '',
+            assessment_name: '',
             score: 0,
             predikat: 'D',
             deskripsi: 'Memerlukan bimbingan lebih lanjut.',
@@ -349,12 +350,13 @@ const ReportPage: React.FC = () => {
                     {/* Academic Records */}
                     <section className="mb-8">
                         <h2 className="text-lg font-bold mb-2">A. Hasil Belajar Akademik</h2>
-                        <table className="w-full border-collapse border border-gray-400 dark:border-gray-600">
-                           <thead><tr className="bg-gray-200 dark:bg-gray-800 font-bold"><td className="border p-2">No</td><td className="border p-2">Mata Pelajaran</td><td className="border p-2">Nilai Akhir</td><td className="border p-2">Predikat</td><td className="border p-2 w-[40%]">Deskripsi</td><td className="w-10 print:hidden"></td></tr></thead>
+                        <table className="w-full border-collapse border border-gray-400 dark:border-gray-600 text-sm">
+                           <thead><tr className="bg-gray-200 dark:bg-gray-800 font-bold"><td className="border p-2">No</td><td className="border p-2">Mata Pelajaran</td><td className="border p-2">Bentuk Penilaian</td><td className="border p-2">Nilai</td><td className="border p-2">Predikat</td><td className="border p-2 w-[35%]">Deskripsi</td><td className="w-10 print:hidden"></td></tr></thead>
                             <tbody>
                                 {editableAcademicRecords.map((record, index) => (
                                     <tr key={record.id}><td className="border p-2 text-center">{index + 1}</td>
                                     <td className="border"><EditableCell value={record.subject} onChange={val => handleListChange(setEditableAcademicRecords, index, 'subject', val)} /></td>
+                                    <td className="border"><EditableCell value={record.assessment_name || ''} onChange={val => handleListChange(setEditableAcademicRecords, index, 'assessment_name', val)} /></td>
                                     <td className="border"><EditableCell type="number" value={record.score} onChange={val => handleListChange(setEditableAcademicRecords, index, 'score', val)} /></td>
                                     <td className="border p-2 text-center">{record.predikat}</td>
                                     <td className="border relative group">
