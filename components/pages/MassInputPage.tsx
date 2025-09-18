@@ -219,7 +219,13 @@ const MassInputPage: React.FC = () => {
                 case 'quiz': {
                     if (!quizInfo.name || !quizInfo.subject || selectedStudentIds.size === 0) throw new Error("Informasi aktivitas dan siswa harus diisi.");
                     const records: Database['public']['Tables']['quiz_points']['Insert'][] = Array.from(selectedStudentIds).map(student_id => ({
-                        ...quizInfo, quiz_date: quizInfo.date, quiz_name: quizInfo.name, student_id, user_id: user.id, points: 1, max_points: 1
+                        quiz_name: quizInfo.name,
+                        subject: quizInfo.subject,
+                        quiz_date: quizInfo.date,
+                        student_id,
+                        user_id: user.id,
+                        points: 1,
+                        max_points: 1,
                     }));
                     const { error } = await supabase.from('quiz_points').insert(records); if (error) throw error; return `Poin keaktifan untuk ${records.length} siswa berhasil disimpan.`;
                 }
