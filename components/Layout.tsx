@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -7,6 +8,7 @@ import GlobalSearch from './ui/GlobalSearch';
 import { Button } from './ui/Button';
 import AiChatAssistant from './AiChatAssistant';
 import { useSyncQueue } from '../hooks/useSyncQueue';
+import GreetingRobot from './GreetingRobot';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
@@ -16,6 +18,15 @@ const navItems = [
   { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
   { href: '/input-massal', label: 'Input Massal', icon: ClipboardPenIcon },
   { href: '/pengaturan', label: 'Pengaturan', icon: SettingsIcon },
+];
+
+// New items for the bottom navigation bar.
+const bottomNavItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+  { href: '/absensi', label: 'Absensi', icon: ClipboardIcon },
+  { href: '/siswa', label: 'Siswa', icon: UsersIcon },
+  { href: '/jadwal', label: 'Jadwal', icon: CalendarIcon },
+  { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
 ];
 
 interface SidebarProps {
@@ -90,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
 };
 
 
-const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> = ({ onMenuClick, onSearchClick }) => {
+const Header: React.FC<{ onSearchClick: () => void; }> = ({ onSearchClick }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -118,69 +129,61 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
 
     return (
         <header className="h-16 bg-white/80 dark:bg-gray-950/70 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
-             <button onClick={onMenuClick} className="md:hidden text-gray-500 dark:text-gray-400" aria-label="Buka menu">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-             </button>
-            <div className="flex-1"></div>
-            <div className="flex items-center space-x-3 sm:space-x-4">
-                {pendingCount > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900/40 px-3 py-1.5 rounded-full animate-fade-in">
-                        {isSyncing ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                                <span>Menyinkronkan...</span>
-                            </>
-                        ) : (
-                            <>
-                                <DownloadCloudIcon className="w-4 h-4" />
-                                <span>{pendingCount} item menunggu</span>
-                            </>
-                        )}
+             <div className="flex items-center gap-3">
+                {/* App logo/name on mobile */}
+                <Link to="/dashboard" className="md:hidden flex items-center gap-2">
+                    <div className="w-8 h-8 bg-sky-600 dark:bg-purple-600 rounded-lg flex items-center justify-center">
+                        <GraduationCapIcon className="w-5 h-5 text-white" />
                     </div>
-                )}
-                <Button
-                    variant="outline"
-                    className="h-9 px-4 hidden sm:inline-flex items-center gap-2 text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-900/50"
-                    onClick={onSearchClick}
-                >
-                    <SearchIcon className="h-4 w-4" />
-                    <span className="text-sm">Cari...</span>
-                    <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-gray-100 dark:bg-gray-700 px-1.5 font-mono text-[10px] font-medium text-gray-600 dark:text-gray-300">
-                        ⌘K
-                    </kbd>
+                    <span className="font-bold text-lg text-gray-800 dark:text-gray-200">Guru Cerdas</span>
+                </Link>
+
+                {/* Desktop search button */}
+                <Button variant="outline" onClick={onSearchClick} className="hidden md:flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                    <SearchIcon className="w-4 h-4" />
+                    Cari Siswa...
                 </Button>
-                <Button variant="ghost" size="icon" onClick={onSearchClick} aria-label="Cari" className="sm:hidden text-gray-500 dark:text-gray-400">
-                    <SearchIcon className="h-5 w-5" />
+            </div>
+            
+            <div className="flex items-center gap-3">
+                {/* Mobile Search Button */}
+                <Button variant="ghost" size="icon" onClick={onSearchClick} className="md:hidden">
+                    <SearchIcon className="w-5 h-5" />
                 </Button>
+
                 <ThemeToggle />
+
+                <div className="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
+
+                 {/* Sync Status */}
+                <div title={isSyncing ? `Menyinkronkan ${pendingCount} data...` : (pendingCount > 0 ? `${pendingCount} data menunggu sinkronisasi` : 'Semua data tersinkronisasi')}
+                     className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <div className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : (pendingCount > 0 ? 'bg-yellow-500' : 'bg-green-500')}`}></div>
+                    <span className="hidden sm:inline">{pendingCount > 0 ? pendingCount : ''}</span>
+                </div>
+
+                {/* AI Chat Assistant Button */}
+                <Button variant="ghost" size="icon" onClick={() => (window as any).toggleAiChat()} aria-label="Buka Asisten AI">
+                    <BrainCircuitIcon className="h-5 w-5 text-purple-500" />
+                </Button>
+
+                {/* Profile Dropdown */}
                 <div className="relative" ref={profileMenuRef}>
-                    <button onClick={() => setProfileMenuOpen(prev => !prev)} className="flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 dark:focus:ring-purple-500 rounded-full">
-                         <img
-                            className="h-9 w-9 rounded-full object-cover"
+                    <button onClick={() => setProfileMenuOpen(!isProfileMenuOpen)}>
+                        <img
+                            className="h-9 w-9 rounded-full object-cover ring-2 ring-offset-2 ring-offset-gray-100 dark:ring-offset-gray-900 ring-sky-500 dark:ring-purple-500"
                             src={user?.avatarUrl}
                             alt="User avatar"
                         />
                     </button>
                     {isProfileMenuOpen && (
-                        <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl shadow-lg bg-white/80 dark:bg-gray-800/80 backdrop-blur-md ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 focus:outline-none animate-fade-in-up" style={{animationDuration: '0.2s'}}>
-                            <div className="p-2">
-                                <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100" aria-hidden="true">{user?.name}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
-                                </div>
-                                <div className="py-1 mt-1">
-                                    <Link to="/pengaturan" onClick={() => setProfileMenuOpen(false)} className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                                        <SettingsIcon className="w-4 h-4 mr-3" />
-                                        <span>Pengaturan</span>
-                                    </Link>
-                                </div>
-                                <div className="py-1 border-t border-gray-200 dark:border-gray-700">
-                                    <button onClick={handleLogout} className="flex items-center w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10">
-                                        <LogoutIcon className="w-4 h-4 mr-3" />
-                                        <span>Logout</span>
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 z-30 animate-fade-in">
+                            <Link to="/pengaturan" onClick={() => setProfileMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                Pengaturan
+                            </Link>
+                            <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                Logout
+                            </button>
                         </div>
                     )}
                 </div>
@@ -189,61 +192,89 @@ const Header: React.FC<{ onMenuClick: () => void; onSearchClick: () => void; }> 
     );
 };
 
+const BottomNavBar: React.FC = () => {
+    return (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-t border-gray-200/50 dark:border-white/10 z-30">
+            <div className="flex justify-around items-center h-full">
+                {bottomNavItems.map(item => (
+                    <NavLink
+                        key={item.href}
+                        to={item.href}
+                        end={item.href === '/dashboard'}
+                        className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${
+                            isActive
+                                ? 'text-sky-600 dark:text-purple-400'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-sky-500 dark:hover:text-purple-300'
+                        }`}
+                    >
+                        <div className="relative w-6 h-6">
+                            <item.icon className="w-6 h-6" />
+                        </div>
+                        <span className="text-xs font-medium mt-1">{item.label}</span>
+                    </NavLink>
+                ))}
+            </div>
+        </nav>
+    );
+};
+
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-    const location = useLocation();
-    
+    const { user } = useAuth();
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+    const [showGreeting, setShowGreeting] = useState(() => {
+        if (typeof sessionStorage !== 'undefined') {
+            return !sessionStorage.getItem('greeted');
+        }
+        return false;
+    });
+
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setSearchOpen(true);
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+                event.preventDefault();
+                setIsSearchOpen(true);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
-  
+
+    // Expose AI chat toggle to window for header button
+    useEffect(() => {
+        (window as any).toggleAiChat = () => setIsAiChatOpen(prev => !prev);
+        return () => { delete (window as any).toggleAiChat; };
+    }, []);
+
+    const handleGreetingEnd = () => {
+        setShowGreeting(false);
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('greeted', 'true');
+        }
+    };
+
     return (
-        <div className="fixed inset-0 flex bg-transparent text-gray-900 dark:text-gray-100">
-            {/* Desktop Sidebar */}
+        <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden">
+            {showGreeting && user && (
+                <GreetingRobot userName={user.name} onAnimationEnd={handleGreetingEnd} />
+            )}
+
+            {/* Desktop sidebar */}
             <div className="hidden md:flex">
                 <Sidebar />
             </div>
 
-             {/* Mobile Sidebar */}
-            <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
-                <div className="flex">
-                  <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-                </div>
-                <div className="flex-shrink-0 w-14" onClick={() => setSidebarOpen(false)}></div>
-            </div>
-            {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" onClick={() => setSidebarOpen(false)}></div>}
-
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <Header onMenuClick={() => setSidebarOpen(true)} onSearchClick={() => setSearchOpen(true)} />
-                <main className="flex-1 overflow-x-hidden overflow-y-auto">
-                    <div key={location.pathname} className="animate-page-transition">
-                        {children}
-                    </div>
+            <div className="flex flex-col flex-1 w-full overflow-hidden">
+                <Header onSearchClick={() => setIsSearchOpen(true)} />
+                <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+                    {children}
                 </main>
             </div>
 
-            <GlobalSearch isOpen={searchOpen} setIsOpen={setSearchOpen} />
+            <BottomNavBar />
 
-            <div className="fixed bottom-6 right-6 z-30">
-                <Button
-                    size="icon"
-                    className="h-14 w-14 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 dark:from-purple-600 dark:to-blue-500 text-white shadow-xl hover:shadow-2xl hover:shadow-sky-500/40 dark:hover:shadow-purple-500/40 transform hover:-translate-y-1 transition-all"
-                    onClick={() => setIsAiAssistantOpen(true)}
-                    aria-label="Buka Asisten AI"
-                >
-                    <BrainCircuitIcon className="h-7 w-7" />
-                </Button>
-            </div>
-            <AiChatAssistant isOpen={isAiAssistantOpen} setIsOpen={setIsAiAssistantOpen} />
+            <GlobalSearch isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} />
+            <AiChatAssistant isOpen={isAiChatOpen} setIsOpen={setIsAiChatOpen} />
         </div>
     );
 };

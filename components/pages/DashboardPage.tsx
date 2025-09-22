@@ -341,9 +341,11 @@ const DashboardPage: React.FC = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Select value={subjectForCheck} onChange={(e) => setSubjectForCheck(e.target.value)} className="mb-4">
+                            {/* FIX: Explicitly type the event object in onChange to resolve 'unknown' type error. */}
+                            <Select value={subjectForCheck} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSubjectForCheck(e.target.value)} className="mb-4">
                                 <option value="" disabled>Pilih Mata Pelajaran</option>
-                                {uniqueSubjects.map(subject => (<option key={subject} value={subject}>{subject}</option>))}
+                                {/* FIX: Explicitly type the 'subject' parameter to resolve 'unknown' type error. */}
+                                {uniqueSubjects.map((subject: string) => (<option key={subject} value={subject}>{subject}</option>))}
                             </Select>
                             <div className="max-h-64 overflow-y-auto space-y-1 pr-2">
                                 {subjectForCheck ? (

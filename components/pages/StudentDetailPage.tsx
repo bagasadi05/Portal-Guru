@@ -892,9 +892,11 @@ const StudentDetailPage = () => {
                         </p>
                         <div>
                             <label htmlFor="subject-select" className="block text-sm font-medium mb-1">Pilih Mata Pelajaran</label>
-                            <Select id="subject-select" value={subjectToApply} onChange={e => setSubjectToApply(e.target.value)} required>
+                            {/* FIX: Explicitly type the event object in onChange to resolve 'unknown' type error. */}
+                            <Select id="subject-select" value={subjectToApply} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSubjectToApply(e.target.value)} required>
                                 <option value="" disabled>-- Pilih --</option>
-                                {uniqueSubjectsForGrades.map(s => <option key={s} value={s}>{s}</option>)}
+                                {/* FIX: Explicitly type the 's' parameter to resolve 'unknown' type error. */}
+                                {uniqueSubjectsForGrades.map((s: string) => <option key={s} value={s}>{s}</option>)}
                             </Select>
                         </div>
                         {currentRecordForSubject && (
@@ -924,7 +926,8 @@ const StudentDetailPage = () => {
                         {modalState.type === 'editStudent' && <>
                             <div><label>Nama Lengkap</label><Input name="name" defaultValue={modalState.data.name} required/></div>
                             <div><label>Jenis Kelamin</label><div className="flex gap-4 mt-2"><label className="flex items-center"><input type="radio" name="gender" value="Laki-laki" defaultChecked={modalState.data.gender === 'Laki-laki'} className="form-radio"/><span className="ml-2">Laki-laki</span></label><label className="flex items-center"><input type="radio" name="gender" value="Perempuan" defaultChecked={modalState.data.gender === 'Perempuan'} className="form-radio"/><span className="ml-2">Perempuan</span></label></div></div>
-                            <div><label>Kelas</label><Select name="class_id" defaultValue={modalState.data.class_id} required>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
+                            {/* FIX: Explicitly type the 'c' parameter to resolve 'unknown' type error. */}
+                            <div><label>Kelas</label><Select name="class_id" defaultValue={modalState.data.class_id} required>{classes.map((c: ClassRow) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
                         </>}
                         {modalState.type === 'report' && <>
                              <div><label>Tanggal</label><Input name="date" type="date" defaultValue={modalState.data?.date || new Date().toISOString().slice(0,10)} required/></div>

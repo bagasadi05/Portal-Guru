@@ -28,7 +28,8 @@ const fetchGlobalSearchData = async (userId: string) => {
     if (classesRes.error) throw classesRes.error;
     if (schedulesRes.error) throw schedulesRes.error;
 
-    const classStudentCounts = (studentsRes.data || []).reduce((acc, student) => {
+    // FIX: Explicitly type 'student' parameter to resolve 'unknown' type being used as an index.
+    const classStudentCounts = (studentsRes.data || []).reduce((acc, student: { class_id: string; }) => {
         acc[student.class_id] = (acc[student.class_id] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
