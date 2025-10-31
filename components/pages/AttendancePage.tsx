@@ -114,7 +114,13 @@ const AttendancePage: React.FC = () => {
         setAttendanceRecords(existingAttendance || {});
     }, [existingAttendance]);
 
-    const { mutate: saveAttendance, isPending: isSaving } = useMutation({
+    // FIX: Add explicit generic types to useMutation to ensure the `context` object in `onError` is correctly typed.
+    const { mutate: saveAttendance, isPending: isSaving } = useMutation<
+        { synced: boolean },
+        Error,
+        Database['public']['Tables']['attendance']['Insert'][],
+        { previousAttendance: Record<string, AttendanceRecord> | undefined }
+    >({
         mutationFn: async (recordsToUpsert: Database['public']['Tables']['attendance']['Insert'][]) => {
             if (isOnline) {
                 const { error } = await supabase.from('attendance').upsert(recordsToUpsert, { onConflict: 'student_id, date' });
@@ -132,11 +138,14 @@ const AttendancePage: React.FC = () => {
         },
         onMutate: async (recordsToUpsert) => {
             await queryClient.cancelQueries({ queryKey: ['attendanceData', selectedClass, selectedDate] });
-            const previousAttendance = queryClient.getQueryData(['attendanceData', selectedClass, selectedDate]);
+            const previousAttendance = queryClient.getQueryData<Record<string, AttendanceRecord>>(['attendanceData', selectedClass, selectedDate]);
+            // FIX: Explicitly type the `old` parameter to resolve the 'unknown' type error when optimistically updating the cache.
             queryClient.setQueryData(['attendanceData', selectedClass, selectedDate], (old: Record<string, AttendanceRecord> = {}) => {
                 const newData = { ...old };
                 recordsToUpsert.forEach(record => {
-                    newData[record.student_id] = { status: record.status as AttendanceStatus, note: record.notes || '' };
+                    if (record.student_id) {
+                        newData[record.student_id] = { status: record.status as AttendanceStatus, note: record.notes || '' };
+                    }
                 });
                 return newData;
             });
@@ -161,7 +170,8 @@ const AttendancePage: React.FC = () => {
 
     const attendanceSummary = useMemo(() => {
         const summary = statusOptions.reduce((acc, opt) => ({ ...acc, [opt.value]: 0 }), {} as Record<AttendanceStatus, number>);
-        Object.values(attendanceRecords).forEach(record => {
+        // FIX: Explicitly type `record` to resolve 'unknown' type from Object.values.
+        Object.values(attendanceRecords).forEach((record: AttendanceRecord) => {
             summary[record.status]++;
         });
         return summary;
@@ -208,7 +218,8 @@ const AttendancePage: React.FC = () => {
             recordsToSave[student.id] = { status: AttendanceStatus.Hadir, note: '' };
         });
         
-        const recordsToUpsert: Database['public']['Tables']['attendance']['Insert'][] = Object.entries(recordsToSave).map(([student_id, record]) => ({
+        // FIX: Explicitly type the `record` parameter in the map function to resolve 'unknown' type errors.
+        const recordsToUpsert: Database['public']['Tables']['attendance']['Insert'][] = Object.entries(recordsToSave).map(([student_id, record]: [string, AttendanceRecord]) => ({
             student_id, date: selectedDate, status: record.status, notes: record.note, user_id: user.id
         }));
 
@@ -231,7 +242,7 @@ const AttendancePage: React.FC = () => {
         
         // FIX: Manually join student with class name as the relationship is not defined in Supabase schema.
         const classMap = new Map((classesRes.data || []).map(c => [c.id, { name: c.name }]));
-        const studentsWithClasses = (studentsRes.data || []).map(s => ({
+        const studentsWithClasses = (studentsRes.data || []).map((s: StudentRow) => ({
             ...s,
             classes: classMap.get(s.class_id) || null
         }));
@@ -288,7 +299,8 @@ const AttendancePage: React.FC = () => {
                 // --- SUMMARY ---
                 const classAttendance = attendance.filter(a => classData.students.some(s => s.id === a.student_id));
                 const summary = { H: 0, S: 0, I: 0, A: 0 };
-                classAttendance.forEach(rec => {
+                // FIX: Explicitly type `rec` parameter in forEach to resolve 'unknown' type error.
+                classAttendance.forEach((rec: AttendanceRow) => {
                     if (rec.status === 'Hadir') summary.H++;
                     else if (rec.status === 'Sakit') summary.S++;
                     else if (rec.status === 'Izin') summary.I++;
@@ -426,7 +438,7 @@ const AttendancePage: React.FC = () => {
     };
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col">
+        <div className="w-full h-full p-4 sm:p-6 md:p-8 flex flex-col max-w-7xl mx-auto">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Pendataan Absensi</h1>

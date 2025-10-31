@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import DashboardPageSkeleton from '../skeletons/DashboardPageSkeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs';
 import { Select } from '../ui/Select';
+import { Skeleton } from '../ui/Skeleton';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type ScheduleRow = Database['public']['Tables']['schedules']['Row'];
@@ -20,13 +21,13 @@ type ClassRow = Database['public']['Tables']['classes']['Row'];
 type WeeklyAttendance = { day: string; present_percentage: number };
 
 type DashboardQueryData = {
-    students: Pick<StudentRow, 'id' | 'name' | 'avatar_url'>[];
+    students: Pick<StudentRow, 'id' | 'name' | 'avatar_url' | 'class_id'>[];
     tasks: TaskRow[];
     schedule: ScheduleRow[];
     classes: Pick<ClassRow, 'id' | 'name'>[];
     dailyAttendanceSummary: { present: number; total: number };
     weeklyAttendance: WeeklyAttendance[];
-    academicRecords: Pick<Database['public']['Tables']['academic_records']['Row'], 'student_id' | 'subject' | 'score'>[];
+    academicRecords: Pick<Database['public']['Tables']['academic_records']['Row'], 'student_id' | 'subject' | 'score' | 'assessment_name'>[];
     violations: Pick<Database['public']['Tables']['violations']['Row'], 'student_id' | 'points'>[];
 };
 
@@ -44,13 +45,13 @@ const fetchDashboardData = async (userId: string): Promise<DashboardQueryData> =
         studentsRes, tasksRes, scheduleRes, classesRes, dailyAttendanceRes,
         weeklyAttendanceRes, academicRecordsRes, violationsRes
     ] = await Promise.all([
-        supabase.from('students').select('id, name, avatar_url').eq('user_id', userId),
+        supabase.from('students').select('id, name, avatar_url, class_id').eq('user_id', userId),
         supabase.from('tasks').select('*').eq('user_id', userId).neq('status', 'done').order('due_date'),
         supabase.from('schedules').select('*').eq('user_id', userId).eq('day', todayDay as Database['public']['Tables']['schedules']['Row']['day']).order('start_time'),
         supabase.from('classes').select('id, name').eq('user_id', userId),
         supabase.from('attendance').select('status', { count: 'exact' }).eq('user_id', userId).eq('date', today),
         supabase.rpc('get_weekly_attendance_summary'),
-        supabase.from('academic_records').select('student_id, subject, score').eq('user_id', userId),
+        supabase.from('academic_records').select('student_id, subject, score, assessment_name').eq('user_id', userId),
         supabase.from('violations').select('student_id, points').eq('user_id', userId)
     ]);
 
@@ -113,7 +114,7 @@ const AiDashboardInsight: React.FC<{ dashboardData: DashboardQueryData | null }>
     };
 
     if (isLoading) {
-        return <div className="space-y-4"><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-1/2"></div><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-full"></div><div className="h-4 bg-gray-300 dark:bg-gray-700/50 rounded w-3/4"></div></div>;
+        return <div className="space-y-4"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" /></div>;
     }
     
     if (error) {
@@ -251,31 +252,66 @@ const DashboardPage: React.FC = () => {
         enabled: !!user,
     });
     
-    const [subjectForCheck, setSubjectForCheck] = useState<string>('');
+    const [subjectForCompletionCheck, setSubjectForCompletionCheck] = useState('');
+    const [assessmentForCompletionCheck, setAssessmentForCompletionCheck] = useState('');
 
     const uniqueSubjects = useMemo(() => {
         if (!data?.academicRecords) return [];
         const subjects = new Set(data.academicRecords.map(r => r.subject));
         return Array.from(subjects).sort();
     }, [data?.academicRecords]);
+    
+    const uniqueAssessmentsForSubject = useMemo(() => {
+        if (!subjectForCompletionCheck || !data?.academicRecords) return [];
+        
+        const assessmentNames = data.academicRecords
+            .filter(r => r.subject === subjectForCompletionCheck && r.assessment_name) // Filter first
+            .map(r => r.assessment_name!.trim()); // Then map and trim
+
+        const uniqueAssessments = [...new Set(assessmentNames)].filter(Boolean); // Create unique set, then filter out empty strings
+        
+        // Use localeCompare for natural sorting (e.g., "PH 10" comes after "PH 2")
+        // FIX: Explicitly type `a` and `b` as strings to resolve the 'unknown' type error on `localeCompare`.
+        return uniqueAssessments.sort((a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [data?.academicRecords, subjectForCompletionCheck]);
 
     useEffect(() => {
-        if (uniqueSubjects.length > 0 && !subjectForCheck) {
-            setSubjectForCheck(uniqueSubjects[0]);
+        if (uniqueSubjects.length > 0 && !subjectForCompletionCheck) {
+            setSubjectForCompletionCheck(uniqueSubjects[0]);
         }
-    }, [uniqueSubjects, subjectForCheck]);
+    }, [uniqueSubjects, subjectForCompletionCheck]);
+    
+    useEffect(() => {
+        if (uniqueAssessmentsForSubject.length > 0) {
+            setAssessmentForCompletionCheck(uniqueAssessmentsForSubject[0]);
+        } else {
+            setAssessmentForCompletionCheck('');
+        }
+    }, [uniqueAssessmentsForSubject]);
 
-    const studentsWithoutGrade = useMemo(() => {
-        if (!subjectForCheck || !data?.students || !data?.academicRecords) return [];
+    const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSubjectForCompletionCheck(e.target.value);
+        setAssessmentForCompletionCheck(''); // Reset when subject changes
+    };
+
+    const studentsMissingGrade = useMemo(() => {
+        if (!subjectForCompletionCheck || !assessmentForCompletionCheck || !data?.students || !data?.academicRecords || !data?.classes) return [];
         
         const gradedStudentIds = new Set(
             data.academicRecords
-                .filter(r => r.subject === subjectForCheck)
+                .filter(r => r.subject === subjectForCompletionCheck && r.assessment_name === assessmentForCompletionCheck)
                 .map(r => r.student_id)
         );
-
-        return data.students.filter(s => !gradedStudentIds.has(s.id));
-    }, [subjectForCheck, data?.students, data?.academicRecords]);
+    
+        const classMap = new Map((data.classes || []).map(c => [c.id, c.name]));
+    
+        return data.students
+            .filter(s => !gradedStudentIds.has(s.id))
+            .map(s => ({
+                ...s,
+                className: classMap.get(s.class_id) || 'N/A'
+            }));
+    }, [subjectForCompletionCheck, assessmentForCompletionCheck, data]);
 
     const handleNavigateToStudent = (studentId: string) => {
         navigate(`/siswa/${studentId}`, { state: { openTab: 'grades' } });
@@ -294,7 +330,7 @@ const DashboardPage: React.FC = () => {
     ];
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent">
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent max-w-7xl mx-auto">
             <header>
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-shadow-md">Selamat datang kembali, {user?.name}!</h2>
                 <p className="mt-1 text-lg text-gray-600 dark:text-indigo-200">Berikut adalah ringkasan aktivitas kelas Anda hari ini.</p>
@@ -306,7 +342,7 @@ const DashboardPage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {stats.map(stat => (
                             <Link to={stat.link} key={stat.label} className="group block">
-                                <Card className="p-4 sm:p-5 flex items-center gap-4 sm:gap-5 group-hover:-translate-y-1">
+                                <Card className="p-4 sm:p-5 flex items-center gap-4 sm:gap-5 group-hover:-translate-y-1 card-shine-hover overflow-hidden">
                                     <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>
                                         <stat.icon className="w-7 h-7" />
                                     </div>
@@ -319,7 +355,7 @@ const DashboardPage: React.FC = () => {
                         ))}
                     </div>
                     
-                    <Card>
+                    <Card className="animate-pulse-border-glow border-purple-500/50 bg-gradient-to-br from-white/5 to-transparent dark:from-slate-900/80 dark:to-slate-900/50">
                         <CardHeader><CardTitle className="flex items-center gap-3"><BrainCircuitIcon className="w-6 h-6 text-sky-500 dark:text-purple-400"/>Wawasan Harian AI</CardTitle></CardHeader>
                         <CardContent><AiDashboardInsight dashboardData={data} /></CardContent>
                     </Card>
@@ -334,30 +370,42 @@ const DashboardPage: React.FC = () => {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-3">
-                                <UserMinusIcon className="w-6 h-6 text-sky-500 dark:text-purple-400"/>Siswa Belum Dinilai
+                                <UserMinusIcon className="w-6 h-6 text-sky-500 dark:text-purple-400"/>
+                                Pemeriksa Kelengkapan Nilai
                             </CardTitle>
                             <CardDescription>
-                                Periksa siswa yang belum memiliki nilai untuk mata pelajaran tertentu.
+                                Lihat siswa yang belum memiliki nilai untuk penilaian tertentu.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {/* FIX: Explicitly type the event object in onChange to resolve 'unknown' type error. */}
-                            <Select value={subjectForCheck} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSubjectForCheck(e.target.value)} className="mb-4">
-                                <option value="" disabled>Pilih Mata Pelajaran</option>
-                                {/* FIX: Explicitly type the 'subject' parameter to resolve 'unknown' type error. */}
-                                {uniqueSubjects.map((subject: string) => (<option key={subject} value={subject}>{subject}</option>))}
-                            </Select>
+                            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                                <Select value={subjectForCompletionCheck} onChange={handleSubjectChange} className="flex-1">
+                                    <option value="" disabled>Pilih Mata Pelajaran</option>
+                                    {uniqueSubjects.map((subject) => (
+                                        <option key={subject} value={subject}>{subject}</option>
+                                    ))}
+                                </Select>
+                                <Select value={assessmentForCompletionCheck} onChange={(e) => setAssessmentForCompletionCheck(e.target.value)} className="flex-1" disabled={uniqueAssessmentsForSubject.length === 0}>
+                                    <option value="" disabled>Pilih Penilaian</option>
+                                    {uniqueAssessmentsForSubject.map((assessment) => (
+                                        <option key={assessment} value={assessment}>{assessment}</option>
+                                    ))}
+                                </Select>
+                            </div>
                             <div className="max-h-64 overflow-y-auto space-y-1 pr-2">
-                                {subjectForCheck ? (
-                                    studentsWithoutGrade.length > 0 ? (
+                                {subjectForCompletionCheck && assessmentForCompletionCheck ? (
+                                    studentsMissingGrade.length > 0 ? (
                                         <>
                                             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 px-1">
-                                                {studentsWithoutGrade.length} SISWA PERLU DINILAI:
+                                                {studentsMissingGrade.length} SISWA BELUM DINILAI:
                                             </p>
-                                            {studentsWithoutGrade.map(student => (
+                                            {studentsMissingGrade.map(student => (
                                                 <div key={student.id} onClick={() => handleNavigateToStudent(student.id)} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
                                                     <img src={student.avatar_url} alt={student.name} className="w-9 h-9 rounded-full object-cover" />
-                                                    <span className="font-medium text-gray-700 dark:text-gray-300">{student.name}</span>
+                                                    <div>
+                                                        <span className="font-medium text-gray-700 dark:text-gray-300">{student.name}</span>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">Kelas {student.className}</p>
+                                                    </div>
                                                     <ChevronRightIcon className="w-5 h-5 ml-auto text-gray-400" />
                                                 </div>
                                             ))}
@@ -367,15 +415,15 @@ const DashboardPage: React.FC = () => {
                                             <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mb-4">
                                                 <CheckCircleIcon className="w-10 h-10 text-green-600 dark:text-green-400" />
                                             </div>
-                                            <p className="font-bold text-lg text-green-700 dark:text-green-300">Semua Siswa Telah Dinilai!</p>
-                                            <p className="text-sm text-green-600 dark:text-green-400">Kerja bagus, nilai untuk mata pelajaran ini sudah lengkap.</p>
+                                            <p className="font-bold text-lg text-green-700 dark:text-green-300">Semua Siswa Lengkap!</p>
+                                            <p className="text-sm text-green-600 dark:text-green-400">Kerja bagus, nilai untuk penilaian ini sudah lengkap.</p>
                                         </div>
                                     )
                                 ) : (
                                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                         <ClipboardPenIcon className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500"/>
-                                        <p className="font-semibold">Pilih Mata Pelajaran</p>
-                                        <p className="text-sm">Pilih subjek di atas untuk melihat siapa saja yang masih memerlukan nilai.</p>
+                                        <p className="font-semibold">Pilih Mata Pelajaran & Penilaian</p>
+                                        <p className="text-sm">Pilih subjek dan penilaian di atas untuk melihat siapa saja yang masih memerlukan nilai.</p>
                                     </div>
                                 )}
                             </div>
@@ -417,7 +465,7 @@ const DashboardPage: React.FC = () => {
                                         const circumference = normalizedRadius * 2 * Math.PI;
                                         const strokeDashoffset = isCurrent ? circumference - (progressPercent / 100) * circumference : 0;
                                         
-                                        const containerClasses = `relative flex items-center gap-4 p-4 bg-gray-100 dark:bg-black/20 rounded-xl transition-all duration-300 overflow-hidden ${isPast ? 'opacity-60' : 'hover:bg-gray-200 dark:hover:bg-black/30'} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20' : ''}`;
+                                        const containerClasses = `relative flex items-center gap-4 p-4 bg-gray-100 dark:bg-black/20 rounded-xl transition-all duration-300 overflow-hidden ${isPast ? 'opacity-60' : 'hover:bg-gray-200 dark:hover:bg-black/30'} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20 animate-pulse-fast' : ''}`;
 
                                         return (
                                             <div key={item.id} className={containerClasses}>

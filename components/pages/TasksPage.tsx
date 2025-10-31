@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -348,7 +344,7 @@ const TasksPage: React.FC = () => {
     }
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col bg-gray-950">
+        <div className="w-full h-full p-4 sm:p-6 md:p-8 relative text-white flex flex-col bg-gray-950">
              <div className="holographic-orb-container" style={{ top: '-40px', width: '120px', height: '120px', opacity: 0.7 }}>
                 <div className="holographic-orb">
                     <div className="orb-glow"></div>

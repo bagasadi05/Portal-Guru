@@ -240,7 +240,7 @@ const StudentsPage: React.FC = () => {
     if (isLoading) return <StudentsPageSkeleton />;
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-6">
+        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-6 max-w-7xl mx-auto">
             <header>
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Manajemen Siswa</h1>
                 <p className="mt-1 text-gray-600 dark:text-indigo-200">Kelola data siswa dan kelas Anda.</p>

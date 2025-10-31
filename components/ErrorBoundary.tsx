@@ -2,16 +2,19 @@ import React from 'react';
 import { AlertTriangleIcon } from './Icons';
 import { Button } from './ui/Button';
 
+// FIX: Switched to interface for better declaration merging and to potentially resolve obscure type errors.
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
 interface State {
   hasError: boolean;
   error?: Error;
 }
 
-class ErrorBoundary extends React.Component<React.PropsWithChildren<{}>, State> {
-  constructor(props: React.PropsWithChildren<{}>) {
-    super(props);
-    this.state = { hasError: false };
-  }
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, State> {
+  // FIX: Initialize state as a class property to avoid constructor issues and ensure `this.state` is always available.
+  state: State = { hasError: false };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };

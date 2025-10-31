@@ -15,12 +15,13 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { GoogleGenAI, Type } from '@google/genai';
 import { generateStudentReport, ReportData as ReportDataType } from '../../services/pdfGenerator';
+import { Modal } from '../ui/Modal';
 
 type ClassRow = Database['public']['Tables']['classes']['Row'];
 type StudentRow = Database['public']['Tables']['students']['Row'];
 type AcademicRecordRow = Database['public']['Tables']['academic_records']['Row'];
 
-type InputMode = 'quiz' | 'subject_grade' | 'violation' | 'bulk_report' | 'academic_print';
+type InputMode = 'quiz' | 'subject_grade' | 'violation' | 'bulk_report' | 'academic_print' | 'delete_subject_grade';
 type Step = 1 | 2;
 type ReviewDataItem = { studentName: string; score: string; };
 type StudentFilter = 'all' | 'selected' | 'unselected' | 'graded' | 'ungraded';
@@ -29,6 +30,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const actionCards: { mode: InputMode; title: string; description: string; icon: React.FC<any> }[] = [
     { mode: 'subject_grade', title: 'Input Nilai Mapel', description: 'Masukkan nilai sumatif/akhir untuk satu kelas sekaligus.', icon: GraduationCapIcon },
+    { mode: 'delete_subject_grade', title: 'Hapus Nilai Massal', description: 'Hapus data nilai untuk satu kelas dan penilaian tertentu.', icon: XCircleIcon },
     { mode: 'quiz', title: 'Input Poin Keaktifan', description: 'Beri poin untuk siswa yang aktif di kelas.', icon: CheckSquareIcon },
     { mode: 'violation', title: 'Input Pelanggaran', description: 'Catat poin pelanggaran untuk beberapa siswa.', icon: ShieldAlertIcon },
     { mode: 'bulk_report', title: 'Cetak Rapor Massal', description: 'Cetak beberapa rapor dari satu kelas dalam satu file.', icon: PrinterIcon },
@@ -46,7 +48,7 @@ const Step1_ModeSelection: React.FC<{ handleModeSelect: (mode: InputMode) => voi
             <h1 className="text-4xl font-bold text-white text-shadow-md">Pusat Input Cerdas</h1>
             <p className="mt-2 text-lg text-indigo-200">Pilih aksi massal yang ingin Anda lakukan untuk efisiensi maksimal.</p>
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {actionCards.map((card, index) => (
                 <div key={card.mode} onClick={() => handleModeSelect(card.mode)} 
                     className="step-card group bg-white/5 backdrop-blur-lg rounded-2xl p-6 text-center transition-all duration-300 hover:-translate-y-2 cursor-pointer"
@@ -109,6 +111,7 @@ const MassInputPage: React.FC = () => {
     const [exportProgress, setExportProgress] = useState("0%");
     const [noteMethod, setNoteMethod] = useState<'ai' | 'template'>('ai');
     const [templateNote, setTemplateNote] = useState('Ananda [Nama Siswa] menunjukkan perkembangan yang baik semester ini. Terus tingkatkan semangat belajar dan jangan ragu bertanya jika ada kesulitan.');
+    const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ isOpen: boolean; count: number }>({ isOpen: false, count: 0 });
     
     // State to track the currently focused input for the 'ungraded' filter fix.
     const [activeStudentInputId, setActiveStudentInputId] = useState<string | null>(null);
@@ -138,11 +141,46 @@ const MassInputPage: React.FC = () => {
             if (!user) return [];
             const { data, error } = await supabase.from('academic_records').select('subject').eq('user_id', user.id);
             if (error) { console.error("Error fetching distinct subjects:", error); return []; }
-            const subjects = (data as { subject: string }[])?.map(item => item.subject) || [];
+            // FIX: Explicitly type the item in the map function to resolve 'unknown' type error.
+            const subjects = (data || []).map((item: { subject: string; }) => item.subject);
             return [...new Set(subjects)].sort();
         },
         enabled: !!user, staleTime: 1000 * 60 * 15,
     });
+
+    const { data: assessmentNames } = useQuery({
+        queryKey: ['assessmentNames', selectedClass, subjectGradeInfo.subject],
+        queryFn: async (): Promise<string[]> => {
+            if (!selectedClass || !subjectGradeInfo.subject || !studentsData) return [];
+            const { data, error } = await supabase
+                .from('academic_records')
+                .select('assessment_name')
+                .eq('subject', subjectGradeInfo.subject)
+                .in('student_id', studentsData?.map(s => s.id) || []);
+            if (error) throw error;
+            // FIX: Explicitly type the item in the map function to resolve 'unknown' type error.
+            const names = (data || []).map((item: { assessment_name: string | null; }) => item.assessment_name).filter((name): name is string => name !== null);
+            return [...new Set(names)].sort();
+        },
+        enabled: (mode === 'delete_subject_grade') && !!selectedClass && !!subjectGradeInfo.subject && !!studentsData,
+    });
+    
+    const { data: existingGrades, isLoading: isLoadingGrades } = useQuery({
+        queryKey: ['existingGrades', selectedClass, subjectGradeInfo.subject, subjectGradeInfo.assessment_name],
+        queryFn: async (): Promise<AcademicRecordRow[]> => {
+            if (!selectedClass || !subjectGradeInfo.subject || !subjectGradeInfo.assessment_name || !studentsData) return [];
+            const { data, error } = await supabase
+                .from('academic_records')
+                .select('*')
+                .eq('subject', subjectGradeInfo.subject)
+                .eq('assessment_name', subjectGradeInfo.assessment_name)
+                .in('student_id', studentsData.map(s => s.id));
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: (mode === 'delete_subject_grade') && !!selectedClass && !!subjectGradeInfo.subject && !!subjectGradeInfo.assessment_name && !!studentsData,
+    });
+
 
     const { data: academicRecords } = useQuery({
         queryKey: ['academicRecordsForPrint', selectedClass, subjectGradeInfo.subject],
@@ -160,6 +198,8 @@ const MassInputPage: React.FC = () => {
         }
     }, [classes, selectedClass]);
 
+    const studentsWithGrades = useMemo(() => new Set(existingGrades?.map(g => g.student_id)), [existingGrades]);
+
     const students = useMemo(() => {
         if (!studentsData) return [];
         let filtered = studentsData;
@@ -169,6 +209,12 @@ const MassInputPage: React.FC = () => {
             } else if (studentFilter === 'ungraded') {
                 // Keep the student in view if their input is currently active, even if it has a value.
                 filtered = filtered.filter(s => !scores[s.id]?.trim() || s.id === activeStudentInputId);
+            }
+        } else if (mode === 'delete_subject_grade') {
+            if (studentFilter === 'graded') {
+                filtered = filtered.filter(s => studentsWithGrades.has(s.id));
+            } else if (studentFilter === 'ungraded') {
+                filtered = filtered.filter(s => !studentsWithGrades.has(s.id));
             }
         } else if (mode) {
             if (studentFilter === 'selected') {
@@ -181,7 +227,7 @@ const MassInputPage: React.FC = () => {
             filtered = filtered.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
         }
         return filtered;
-    }, [studentsData, searchTerm, studentFilter, scores, selectedStudentIds, mode, activeStudentInputId]);
+    }, [studentsData, searchTerm, studentFilter, scores, selectedStudentIds, mode, activeStudentInputId, studentsWithGrades]);
 
     const handleModeSelect = (selectedMode: InputMode) => { setMode(selectedMode); setStep(2); };
     
@@ -189,16 +235,42 @@ const MassInputPage: React.FC = () => {
         setStep(1); setMode(null); setSelectedClass(''); setQuizInfo({ name: '', subject: '', date: new Date().toISOString().slice(0,10) });
         setSubjectGradeInfo({ subject: '', assessment_name: '', notes: '' }); setScores({}); setPasteData(''); setSelectedViolationCode('');
         setViolationDate(new Date().toISOString().slice(0,10)); setSelectedStudentIds(new Set()); setSearchTerm(''); setStudentFilter('all');
+        setConfirmDeleteModal({ isOpen: false, count: 0 });
     };
     
     useEffect(() => { setSelectedStudentIds(new Set()); setScores({}); setSearchTerm(''); setStudentFilter('all'); }, [selectedClass]);
     useEffect(() => { setStudentFilter('all'); }, [mode]);
     
-    const gradedCount = useMemo(() => Object.values(scores).filter(s => s.trim() !== '').length, [scores]);
-    const isAllSelected = useMemo(() => students && students.length > 0 && selectedStudentIds.size === students.length, [selectedStudentIds, students]);
+    // FIX: Explicitly type the parameter `s` as string to allow calling `trim()`.
+    const gradedCount = useMemo(() => Object.values(scores).filter((s: string) => s && s.trim() !== '').length, [scores]);
+    
+    const selectableStudentsCount = useMemo(() => {
+        if (!studentsData) return 0;
+        if (mode === 'delete_subject_grade') {
+            return studentsData.filter(s => studentsWithGrades.has(s.id)).length;
+        }
+        return studentsData.length;
+    }, [studentsData, mode, studentsWithGrades]);
+
+    const isAllSelected = useMemo(() => {
+        if (selectableStudentsCount === 0) return false;
+        return selectedStudentIds.size === selectableStudentsCount;
+    }, [selectedStudentIds.size, selectableStudentsCount]);
+
     const selectedViolation = useMemo(() => violationList.find(v => v.code === selectedViolationCode) || null, [selectedViolationCode]);
 
-    const handleSelectAllStudents = (checked: boolean) => setSelectedStudentIds(checked ? new Set(students?.map(s => s.id)) : new Set());
+    const handleSelectAllStudents = (checked: boolean) => {
+        if (checked) {
+            if (!studentsData) return;
+            let idsToSelect = studentsData.map(s => s.id);
+            if (mode === 'delete_subject_grade') {
+                idsToSelect = studentsData.filter(s => studentsWithGrades.has(s.id)).map(s => s.id);
+            }
+            setSelectedStudentIds(new Set(idsToSelect));
+        } else {
+            setSelectedStudentIds(new Set());
+        }
+    };
 
     const handleStudentSelect = (studentId: string) => {
         setSelectedStudentIds(prev => {
@@ -218,7 +290,8 @@ const MassInputPage: React.FC = () => {
             switch (mode) {
                 case 'quiz': {
                     if (!quizInfo.name || !quizInfo.subject || selectedStudentIds.size === 0) throw new Error("Informasi aktivitas dan siswa harus diisi.");
-                    const records: Database['public']['Tables']['quiz_points']['Insert'][] = Array.from(selectedStudentIds).map(student_id => ({
+                    // FIX: Explicitly type `student_id` as string to match the expected Insert type.
+                    const records: Database['public']['Tables']['quiz_points']['Insert'][] = Array.from(selectedStudentIds).map((student_id: string) => ({
                         quiz_name: quizInfo.name,
                         subject: quizInfo.subject,
                         quiz_date: quizInfo.date,
@@ -231,8 +304,9 @@ const MassInputPage: React.FC = () => {
                 }
                 case 'subject_grade': {
                     if (!subjectGradeInfo.subject || !subjectGradeInfo.assessment_name || gradedCount === 0) throw new Error("Mata pelajaran, nama penilaian, dan setidaknya satu nilai harus diisi.");
+                    // FIX: Explicitly type `score` as string to allow calling `trim()`.
                     const records: Database['public']['Tables']['academic_records']['Insert'][] = Object.entries(scores)
-                        .filter(([_, score]) => score.trim() !== '')
+                        .filter(([, score]: [string, string]) => score && score.trim() !== '')
                         .map(([student_id, score]) => ({ 
                             subject: subjectGradeInfo.subject,
                             assessment_name: subjectGradeInfo.assessment_name,
@@ -241,11 +315,12 @@ const MassInputPage: React.FC = () => {
                             student_id, 
                             user_id: user.id 
                         }));
-                    const { error } = await supabase.from('academic_records').insert(records); if (error) throw error; return `Nilai untuk ${records.length} siswa berhasil disimpan.`;
+                    const { error } = await supabase.from('academic_records').upsert(records, { onConflict: 'student_id, subject, assessment_name' }); if (error) throw error; return `Nilai untuk ${records.length} siswa berhasil disimpan.`;
                 }
                 case 'violation': {
                     if (!selectedViolation || selectedStudentIds.size === 0) throw new Error("Jenis pelanggaran dan siswa harus dipilih.");
-                    const records: Database['public']['Tables']['violations']['Insert'][] = Array.from(selectedStudentIds).map(student_id => ({
+                    // FIX: Explicitly type `student_id` as string to match the expected Insert type.
+                    const records: Database['public']['Tables']['violations']['Insert'][] = Array.from(selectedStudentIds).map((student_id: string) => ({
                         date: violationDate, description: selectedViolation.description, points: selectedViolation.points, student_id, user_id: user.id
                     }));
                     const { error } = await supabase.from('violations').insert(records); if (error) throw error; return `Pelanggaran untuk ${records.length} siswa berhasil dicatat.`;
@@ -256,12 +331,27 @@ const MassInputPage: React.FC = () => {
         onError: (err: Error) => toast.error(`Gagal menyimpan: ${err.message}`),
     });
 
+    const { mutate: deleteGrades, isPending: isDeleting } = useMutation({
+        mutationFn: async (recordIds: string[]) => {
+            if (recordIds.length === 0) return "Tidak ada nilai yang dipilih untuk dihapus.";
+            const { error } = await supabase.from('academic_records').delete().in('id', recordIds);
+            if (error) throw error;
+            return `${recordIds.length} data nilai berhasil dihapus.`;
+        },
+        onSuccess: (message) => {
+            toast.success(message);
+            queryClient.invalidateQueries({ queryKey: ['existingGrades'] });
+            setSelectedStudentIds(new Set());
+        },
+        onError: (err: Error) => toast.error(`Gagal menghapus: ${err.message}`),
+    });
+
     const handleAiParse = async () => {
-        if (!students || students.length === 0) { toast.warning("Pilih kelas dengan siswa terlebih dahulu."); return; }
+        if (!studentsData || studentsData.length === 0) { toast.warning("Pilih kelas dengan siswa terlebih dahulu."); return; }
         if (!pasteData.trim()) { toast.warning("Tempelkan data nilai terlebih dahulu."); return; }
         setIsParsing(true);
         try {
-            const studentNames = students.map(s => s.name);
+            const studentNames = studentsData.map(s => s.name);
             const systemInstruction = `Anda adalah asisten entri data. Tugas Anda adalah mencocokkan nama dari teks yang diberikan dengan daftar nama siswa yang ada dan mengekstrak nilainya. Hanya cocokkan nama yang ada di daftar. Abaikan nama yang tidak ada di daftar. Format output harus JSON yang valid sesuai skema.`;
             const prompt = `Daftar Siswa: ${JSON.stringify(studentNames)}\n\nTeks Nilai untuk Diproses:\n${pasteData}`;
             const responseSchema = { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { studentName: { type: Type.STRING }, score: { type: Type.STRING } } } };
@@ -269,7 +359,7 @@ const MassInputPage: React.FC = () => {
             const parsedResults = JSON.parse(response.text.trim()) as ReviewDataItem[];
             const newScores: Record<string, string> = {}; let matchedCount = 0;
             parsedResults.forEach(item => {
-                const student = students.find(s => s.name.toLowerCase() === item.studentName.toLowerCase());
+                const student = studentsData.find(s => s.name.toLowerCase() === item.studentName.toLowerCase());
                 if (student) { newScores[student.id] = String(item.score); matchedCount++; }
             });
             setScores(prev => ({...prev, ...newScores}));
@@ -293,8 +383,9 @@ const MassInputPage: React.FC = () => {
 
     const handlePrintBulkReports = async () => {
         if (selectedStudentIds.size === 0) { toast.warning("Pilih setidaknya satu siswa."); return; }
+        if (!studentsData) return;
         setIsExporting(true); setExportProgress("0%"); toast.info(`Mulai proses cetak ${selectedStudentIds.size} rapor...`);
-        const studentsToPrint = (studentsData || []).filter(s => selectedStudentIds.has(s.id));
+        const studentsToPrint = studentsData.filter(s => selectedStudentIds.has(s.id));
         try {
             setExportProgress("10%"); toast.info("Mengambil data siswa...");
             const allReportData = await Promise.all(studentsToPrint.map(student => fetchReportDataForStudent(student.id, user!.id)));
@@ -367,16 +458,32 @@ const MassInputPage: React.FC = () => {
         doc.save(`Nilai_${subjectGradeInfo.subject.replace(/\s/g, '_')}_${className}.pdf`);
         toast.success("Rekap nilai berhasil diunduh."); setIsExporting(false);
     };
-    
+
+    const handleConfirmDelete = () => {
+        const recordIdsToDelete = (existingGrades || [])
+            .filter(g => selectedStudentIds.has(g.student_id))
+            .map(g => g.id);
+        deleteGrades(recordIdsToDelete);
+        setConfirmDeleteModal({ isOpen: false, count: 0 });
+    };
+
+    const handleSubmit = () => {
+        if (mode === 'bulk_report') handlePrintBulkReports();
+        else if (mode === 'academic_print') handlePrintGrades();
+        else if (mode === 'delete_subject_grade') setConfirmDeleteModal({ isOpen: true, count: selectedStudentIds.size });
+        else submitData();
+    };
+
     const summaryText = useMemo(() => {
         const totalStudents = studentsData?.length || 0;
         if (mode === 'subject_grade') { return `${gradedCount} dari ${totalStudents} siswa telah dinilai.`; }
+        if (mode === 'delete_subject_grade') { return `${selectedStudentIds.size} dari ${studentsWithGrades.size} siswa terpilih untuk dihapus.`; }
         return `${selectedStudentIds.size} dari ${totalStudents} siswa dipilih.`;
-    }, [mode, gradedCount, selectedStudentIds.size, studentsData]);
+    }, [mode, gradedCount, selectedStudentIds.size, studentsData, studentsWithGrades]);
 
     const submitButtonTooltip = useMemo(() => {
         if (!isOnline) return "Fitur ini memerlukan koneksi internet.";
-        if (isSubmitting || isExporting) return "Sedang memproses...";
+        if (isSubmitting || isExporting || isDeleting) return "Sedang memproses...";
         if (!selectedClass) return "Pilih kelas terlebih dahulu.";
         switch(mode) {
             case 'subject_grade':
@@ -388,29 +495,42 @@ const MassInputPage: React.FC = () => {
             case 'violation':
                 if (!selectedViolationCode) return "Pilih jenis pelanggaran.";
                 if (selectedStudentIds.size === 0) return "Pilih setidaknya satu siswa."; break;
+            case 'delete_subject_grade':
+                if (!subjectGradeInfo.subject || !subjectGradeInfo.assessment_name) return "Pilih mata pelajaran dan penilaian.";
+                if (selectedStudentIds.size === 0) return "Pilih setidaknya satu nilai siswa untuk dihapus."; break;
             case 'bulk_report':
             case 'academic_print':
                 if (selectedStudentIds.size === 0) return "Pilih setidaknya satu siswa.";
                 if (mode === 'academic_print' && !subjectGradeInfo.subject) return "Pilih mata pelajaran untuk dicetak."; break;
         }
         return '';
-    }, [isOnline, isSubmitting, isExporting, selectedClass, mode, subjectGradeInfo, gradedCount, quizInfo, selectedStudentIds, selectedViolationCode]);
+    }, [isOnline, isSubmitting, isExporting, isDeleting, selectedClass, mode, subjectGradeInfo, gradedCount, quizInfo, selectedStudentIds, selectedViolationCode]);
 
     const isSubmitDisabled = !!submitButtonTooltip;
 
-    // FIX: Explicitly set the return type for useMemo to satisfy TypeScript's strict checking for the `FilterPills` component props.
     const filterOptions = useMemo((): { value: StudentFilter; label: string }[] => {
-        if (mode === 'subject_grade') return [ { value: 'all', label: 'Semua' }, { value: 'graded', label: 'Sudah Dinilai' }, { value: 'ungraded', label: 'Belum Dinilai' } ];
+        if (mode === 'subject_grade' || mode === 'delete_subject_grade') return [ { value: 'all', label: 'Semua' }, { value: 'graded', label: 'Sudah Dinilai' }, { value: 'ungraded', label: 'Belum Dinilai' } ];
         if (['quiz', 'violation', 'bulk_report', 'academic_print'].includes(mode || '')) return [ { value: 'all', label: 'Semua' }, { value: 'selected', label: 'Terpilih' }, { value: 'unselected', label: 'Belum Dipilih' } ];
         return [];
     }, [mode]);
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col cosmic-bg text-white">
+        <div className="w-full h-full p-4 sm:p-6 md:p-8 flex flex-col cosmic-bg text-white">
             {step === 1 ? <Step1_ModeSelection handleModeSelect={handleModeSelect} /> : (
                 <div className="w-full max-w-7xl mx-auto flex flex-col flex-grow">
                     <header className="flex items-center gap-4 mb-6"><Button variant="outline" size="icon" onClick={handleBack} className="bg-white/10 border-white/20 hover:bg-white/20 flex-shrink-0"><ArrowLeftIcon className="w-4 h-4" /></Button><div><h1 className="text-3xl font-bold tracking-tight">{actionCards.find(c => c.mode === mode)?.title}</h1><p className="mt-1 text-gray-300">{actionCards.find(c => c.mode === mode)?.description}</p></div></header>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow"><div className="lg:col-span-1 space-y-6"><div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6"><h3 className="font-bold text-lg mb-4 border-b border-white/10 pb-3">Konfigurasi</h3><div className="space-y-4"><div><label className="text-sm font-medium text-gray-300">Kelas</label><Select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} disabled={isLoadingClasses}>{classes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>{mode === 'quiz' && <><div><label className="text-sm font-medium text-gray-300">Nama Aktivitas</label><Input value={quizInfo.name} onChange={e => setQuizInfo(p => ({...p, name: e.target.value}))} placeholder="cth. Aktif Bertanya"/></div><div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input value={quizInfo.subject} onChange={e => setQuizInfo(p => ({...p, subject: e.target.value}))} placeholder="cth. Matematika"/></div><div><label className="text-sm font-medium text-gray-300">Tanggal</label><Input type="date" value={quizInfo.date} onChange={e => setQuizInfo(p => ({...p, date: e.target.value}))}/></div></>}{mode === 'subject_grade' && <><div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input list="subjects-datalist" value={subjectGradeInfo.subject} onChange={e => setSubjectGradeInfo(p => ({...p, subject: e.target.value}))} placeholder="cth. IPA Terpadu" required/><datalist id="subjects-datalist">{uniqueSubjects?.map(s => <option key={s} value={s}/>)}</datalist></div><div><label className="text-sm font-medium text-gray-300">Nama Penilaian</label><Input value={subjectGradeInfo.assessment_name} onChange={e => setSubjectGradeInfo(p => ({...p, assessment_name: e.target.value}))} placeholder="cth. PH 1, UTS" required/></div><div><label className="text-sm font-medium text-gray-300">Catatan (Opsional)</label><Input value={subjectGradeInfo.notes} onChange={e => setSubjectGradeInfo(p => ({...p, notes: e.target.value}))} placeholder="Catatan umum untuk semua nilai"/></div></>}{mode === 'violation' && <><div><label className="text-sm font-medium text-gray-300">Jenis Pelanggaran</label><Select value={selectedViolationCode} onChange={e => setSelectedViolationCode(e.target.value)}><option value="">-- Pilih Pelanggaran --</option>{violationList.map(v => <option key={v.code} value={v.code}>{v.description} ({v.points} poin)</option>)}</Select></div><div><label className="text-sm font-medium text-gray-300">Tanggal</label><Input type="date" value={violationDate} onChange={e => setViolationDate(e.target.value)}/></div></>}{mode === 'bulk_report' && <><div><label className="text-sm font-medium text-gray-300">Metode Catatan Guru</label><Select value={noteMethod} onChange={e => setNoteMethod(e.target.value as any)}><option value="ai">Generate dengan AI</option><option value="template">Gunakan Template</option></Select></div>{noteMethod === 'template' && <div><label className="text-sm font-medium text-gray-300">Template Catatan</label><textarea value={templateNote} onChange={e => setTemplateNote(e.target.value)} rows={4} className="w-full mt-1 p-2 border rounded-md bg-white/10 border-white/20 text-white placeholder:text-gray-400"></textarea><p className="text-xs text-gray-400 mt-1">Gunakan [Nama Siswa] untuk personalisasi.</p></div>}</>}{mode === 'academic_print' && <div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input list="subjects-datalist" value={subjectGradeInfo.subject} onChange={e => setSubjectGradeInfo(p => ({...p, subject: e.target.value}))} placeholder="Pilih atau ketik mapel"/><datalist id="subjects-datalist">{uniqueSubjects?.map(s => <option key={s} value={s}/>)}</datalist></div>}</div></div>{mode === 'subject_grade' && isOnline && (<div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6"><h3 className="font-bold text-lg mb-4 border-b border-white/10 pb-3 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-purple-400"/>Tempel Data Nilai</h3><textarea value={pasteData} onChange={e => setPasteData(e.target.value)} placeholder="Contoh:&#10;Budi Santoso   95&#10;Ani Wijaya      88" rows={4} className="w-full p-2 border rounded-md bg-white/10 border-white/20 text-white placeholder:text-gray-400"></textarea><Button onClick={handleAiParse} disabled={isParsing} className="mt-2"><ClipboardPasteIcon className="w-4 h-4 mr-2"/>{isParsing ? 'Memproses...' : 'Proses dengan AI'}</Button></div>)}</div><div className="lg:col-span-2 bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 flex flex-col"><div className="p-4 sm:p-6 border-b border-white/10 flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between"><div className="relative flex-grow w-full sm:w-auto"><SearchIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2"/><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Cari nama siswa..." className="pl-10 w-full"/></div><FilterPills options={filterOptions} currentValue={studentFilter} onFilterChange={setStudentFilter} /></div><div className="flex-grow overflow-y-auto">{isLoadingStudents ? <p className="p-6 text-center">Memuat siswa...</p> : students && students.length > 0 ? (<div className="overflow-x-auto"><table className="w-full text-sm striped-table sticky-header min-w-[500px]"><thead><tr><th className="p-4 text-left w-10">{mode !== 'subject_grade' && <Checkbox checked={isAllSelected} onChange={e => handleSelectAllStudents(e.target.checked)}/>}</th><th className="p-4 text-left font-semibold">Nama Siswa</th><th className="p-4 text-left font-semibold">{mode === 'subject_grade' ? 'Input Nilai' : mode === 'academic_print' ? 'Nilai Saat Ini' : 'Status'}</th></tr></thead><tbody>{students.map(s => { const isSelected = selectedStudentIds.has(s.id); const record = mode === 'academic_print' ? academicRecords?.find(r => r.student_id === s.id) : null; return(<tr key={s.id} onClick={mode !== 'subject_grade' ? () => handleStudentSelect(s.id) : undefined} className={`border-b border-white/10 transition-colors ${(isSelected || (mode === 'subject_grade' && scores[s.id]?.trim())) ? 'bg-purple-500/10' : 'hover:bg-white/5'} ${mode !== 'subject_grade' ? 'cursor-pointer' : ''}`}><td className="p-4">{mode !== 'subject_grade' && <Checkbox checked={isSelected} onChange={() => handleStudentSelect(s.id)}/>}</td><td className="p-4 flex items-center gap-3"><img src={s.avatar_url} alt={s.name} className="w-9 h-9 rounded-full object-cover"/><span className="font-medium">{s.name}</span></td><td className="p-4">{mode === 'subject_grade' ? <Input type="number" min="0" max="100" value={scores[s.id] || ''} onChange={e => handleScoreChange(s.id, e.target.value)} onFocus={() => setActiveStudentInputId(s.id)} onBlur={() => setActiveStudentInputId(null)} className="w-24"/> : mode === 'academic_print' ? <span className={`font-bold px-2 py-1 rounded-md ${record ? 'bg-purple-500/20 text-purple-200' : 'bg-white/10 text-gray-500'}`}>{record ? record.score : 'N/A'}</span> : isSelected ? <span className="text-green-400 font-semibold">Terpilih</span> : <span className="text-gray-500">Belum dipilih</span>}</td></tr>)})}</tbody></table></div>) : <p className="p-6 text-center">Tidak ada siswa di kelas ini atau tidak ada hasil pencarian.</p>}</div></div></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow"><div className="lg:col-span-1 space-y-6"><div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6"><h3 className="font-bold text-lg mb-4 border-b border-white/10 pb-3">Konfigurasi</h3><div className="space-y-4"><div><label className="text-sm font-medium text-gray-300">Kelas</label><Select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} disabled={isLoadingClasses}>{classes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>{mode === 'quiz' && <><div><label className="text-sm font-medium text-gray-300">Nama Aktivitas</label><Input value={quizInfo.name} onChange={e => setQuizInfo(p => ({...p, name: e.target.value}))} placeholder="cth. Aktif Bertanya"/></div><div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input value={quizInfo.subject} onChange={e => setQuizInfo(p => ({...p, subject: e.target.value}))} placeholder="cth. Matematika"/></div><div><label className="text-sm font-medium text-gray-300">Tanggal</label><Input type="date" value={quizInfo.date} onChange={e => setQuizInfo(p => ({...p, date: e.target.value}))}/></div></>}{mode === 'subject_grade' && <><div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input list="subjects-datalist" value={subjectGradeInfo.subject} onChange={e => setSubjectGradeInfo(p => ({...p, subject: e.target.value}))} placeholder="cth. IPA Terpadu" required/><datalist id="subjects-datalist">{uniqueSubjects?.map(s => <option key={s} value={s}/>)}</datalist></div><div><label className="text-sm font-medium text-gray-300">Nama Penilaian</label><Input value={subjectGradeInfo.assessment_name} onChange={e => setSubjectGradeInfo(p => ({...p, assessment_name: e.target.value}))} placeholder="cth. PH 1, UTS" required/></div><div><label className="text-sm font-medium text-gray-300">Catatan (Opsional)</label><Input value={subjectGradeInfo.notes} onChange={e => setSubjectGradeInfo(p => ({...p, notes: e.target.value}))} placeholder="Catatan umum untuk semua nilai"/></div></>}{mode === 'violation' && <><div><label className="text-sm font-medium text-gray-300">Jenis Pelanggaran</label><Select value={selectedViolationCode} onChange={e => setSelectedViolationCode(e.target.value)}><option value="">-- Pilih Pelanggaran --</option>{violationList.map(v => <option key={v.code} value={v.code}>{v.description} ({v.points} poin)</option>)}</Select></div><div><label className="text-sm font-medium text-gray-300">Tanggal</label><Input type="date" value={violationDate} onChange={e => setViolationDate(e.target.value)}/></div></>}{mode === 'bulk_report' && <><div><label className="text-sm font-medium text-gray-300">Metode Catatan Guru</label><Select value={noteMethod} onChange={e => setNoteMethod(e.target.value as any)}><option value="ai">Generate dengan AI</option><option value="template">Gunakan Template</option></Select></div>{noteMethod === 'template' && <div><label className="text-sm font-medium text-gray-300">Template Catatan</label><textarea value={templateNote} onChange={e => setTemplateNote(e.target.value)} rows={4} className="w-full mt-1 p-2 border rounded-md bg-white/10 border-white/20 text-white placeholder:text-gray-400"></textarea><p className="text-xs text-gray-400 mt-1">Gunakan [Nama Siswa] untuk personalisasi.</p></div>}</>}{mode === 'academic_print' && <div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input list="subjects-datalist" value={subjectGradeInfo.subject} onChange={e => setSubjectGradeInfo(p => ({...p, subject: e.target.value}))} placeholder="Pilih atau ketik mapel"/><datalist id="subjects-datalist">{uniqueSubjects?.map(s => <option key={s} value={s}/>)}</datalist></div>}
+                    {mode === 'delete_subject_grade' && <><div><label className="text-sm font-medium text-gray-300">Mata Pelajaran</label><Input list="subjects-datalist" value={subjectGradeInfo.subject} onChange={e => setSubjectGradeInfo(p => ({ ...p, subject: e.target.value, assessment_name: '' }))} placeholder="Pilih atau ketik mapel" required /><datalist id="subjects-datalist">{uniqueSubjects?.map(s => <option key={s} value={s} />)}</datalist></div><div><label className="text-sm font-medium text-gray-300">Nama Penilaian</label><Select value={subjectGradeInfo.assessment_name} onChange={e => setSubjectGradeInfo(p => ({ ...p, assessment_name: e.target.value }))} disabled={!subjectGradeInfo.subject || !assessmentNames} required><option value="">-- Pilih Penilaian --</option>{assessmentNames?.map(name => <option key={name} value={name}>{name}</option>)}</Select></div></>}
+                    </div></div>{mode === 'subject_grade' && isOnline && (<div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6"><h3 className="font-bold text-lg mb-4 border-b border-white/10 pb-3 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-purple-400"/>Tempel Data Nilai</h3><textarea value={pasteData} onChange={e => setPasteData(e.target.value)} placeholder="Contoh:&#10;Budi Santoso   95&#10;Ani Wijaya      88" rows={4} className="w-full p-2 border rounded-md bg-white/10 border-white/20 text-white placeholder:text-gray-400"></textarea><Button onClick={handleAiParse} disabled={isParsing} className="mt-2"><ClipboardPasteIcon className="w-4 h-4 mr-2"/>{isParsing ? 'Memproses...' : 'Proses dengan AI'}</Button></div>)}</div><div className="lg:col-span-2 bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 flex flex-col"><div className="p-4 sm:p-6 border-b border-white/10 flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between"><div className="relative flex-grow w-full sm:w-auto"><SearchIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2"/><Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Cari nama siswa..." className="pl-10 w-full"/></div><FilterPills options={filterOptions} currentValue={studentFilter} onFilterChange={setStudentFilter} /></div><div className="flex-grow overflow-y-auto">{isLoadingStudents ? <p className="p-6 text-center">Memuat siswa...</p> : students && students.length > 0 ? (<div className="overflow-x-auto"><table className="w-full text-sm striped-table sticky-header min-w-[500px]"><thead><tr><th className="p-4 text-left w-10">{mode !== 'subject_grade' && <Checkbox checked={isAllSelected} onChange={e => handleSelectAllStudents(e.target.checked)}/>}</th><th className="p-4 text-left font-semibold">Nama Siswa</th><th className="p-4 text-left font-semibold">{mode === 'subject_grade' ? 'Input Nilai' : (mode === 'academic_print' || mode === 'delete_subject_grade') ? 'Nilai Saat Ini' : 'Status'}</th></tr></thead><tbody>{students.map(s => { const isSelected = selectedStudentIds.has(s.id); const gradeRecord = (mode === 'delete_subject_grade' || mode === 'academic_print') ? (existingGrades || []).find(g => g.student_id === s.id) : null; const hasGrade = !!gradeRecord; return(<tr key={s.id} onClick={mode !== 'subject_grade' ? () => handleStudentSelect(s.id) : undefined} className={`border-b border-white/10 transition-colors ${(isSelected || (mode === 'subject_grade' && scores[s.id]?.trim())) ? 'bg-purple-500/10' : 'hover:bg-white/5'} ${mode !== 'subject_grade' ? 'cursor-pointer' : ''}`}><td className="p-4">{mode !== 'subject_grade' && <Checkbox checked={isSelected} onChange={() => handleStudentSelect(s.id)} disabled={mode === 'delete_subject_grade' && !hasGrade}/>}</td><td className="p-4 flex items-center gap-3"><img src={s.avatar_url} alt={s.name} className="w-9 h-9 rounded-full object-cover"/><span className="font-medium">{s.name}</span></td><td className="p-4">{mode === 'subject_grade' ? <Input type="number" min="0" max="100" value={scores[s.id] || ''} onChange={e => handleScoreChange(s.id, e.target.value)} onFocus={() => setActiveStudentInputId(s.id)} onBlur={() => setActiveStudentInputId(null)} className="w-24"/> : (mode === 'academic_print' || mode === 'delete_subject_grade') ? <span className={`font-bold px-2 py-1 rounded-md ${hasGrade ? 'bg-purple-500/20 text-purple-200' : 'bg-white/10 text-gray-500'}`}>{hasGrade ? gradeRecord.score : 'N/A'}</span> : isSelected ? <span className="text-green-400 font-semibold">Terpilih</span> : <span className="text-gray-500">Belum dipilih</span>}</td></tr>)})}</tbody></table></div>) : <p className="p-6 text-center">Tidak ada siswa di kelas ini atau tidak ada hasil pencarian.</p>}</div></div></div>
+                    <Modal isOpen={confirmDeleteModal.isOpen} onClose={() => setConfirmDeleteModal({ isOpen: false, count: 0 })} title="Konfirmasi Hapus Nilai">
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Anda akan menghapus <strong className="text-white">{confirmDeleteModal.count} data nilai</strong> untuk penilaian <strong className="text-white">"{subjectGradeInfo.assessment_name}"</strong>. Aksi ini tidak dapat dibatalkan.</p>
+                            <div className="flex justify-end gap-2 pt-4">
+                                <Button type="button" variant="ghost" onClick={() => setConfirmDeleteModal({ isOpen: false, count: 0 })}>Batal</Button>
+                                <Button type="button" variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</Button>
+                            </div>
+                        </div>
+                    </Modal>
                 </div>
             )}
             
@@ -430,8 +550,8 @@ const MassInputPage: React.FC = () => {
                                 <div className="relative pt-1"><div className="overflow-hidden h-2 mb-2 text-xs flex rounded bg-purple-200/20"><div style={{ width: exportProgress }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500"></div></div><p className="text-xs text-purple-200">{exportProgress}</p></div>
                             </div>
                         ) : (
-                            <Button onClick={mode === 'bulk_report' ? handlePrintBulkReports : (mode === 'academic_print' ? handlePrintGrades : () => submitData())} disabled={isSubmitDisabled} title={submitButtonTooltip} className="w-full sm:w-auto">
-                                {isSubmitting ? 'Memproses...' : (mode?.includes('print') || mode?.includes('report')) ? 'Cetak Laporan' : 'Simpan Data'}
+                            <Button onClick={handleSubmit} disabled={isSubmitDisabled} title={submitButtonTooltip} className="w-full sm:w-auto" variant={mode === 'delete_subject_grade' ? 'destructive' : 'default'}>
+                                {isSubmitting || isDeleting ? 'Memproses...' : mode === 'delete_subject_grade' ? 'Hapus Nilai Terpilih' : (mode?.includes('print') || mode?.includes('report')) ? 'Cetak Laporan' : 'Simpan Data'}
                             </Button>
                         )}
                     </div>

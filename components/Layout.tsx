@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -46,55 +45,58 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
     };
 
     return (
-        <aside className="w-64 flex-shrink-0 bg-gradient-to-b from-sky-700 via-sky-800 to-slate-900 dark:from-indigo-700 dark:via-purple-800 dark:to-slate-900 flex flex-col p-4 text-white">
-            <div className="flex items-center gap-3 px-2 mb-8">
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <GraduationCapIcon className="w-6 h-6 text-sky-300 dark:text-purple-300" />
+        <aside className="relative w-64 flex-shrink-0 bg-gradient-to-b from-sky-700 via-sky-800 to-slate-900 dark:from-indigo-700 dark:via-purple-800 dark:to-slate-900 text-white">
+            <div className="sidebar-bg absolute inset-0"></div>
+            <div className="relative z-10 flex flex-col p-4 h-full">
+                <div className="flex items-center gap-3 px-2 mb-8">
+                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <GraduationCapIcon className="w-6 h-6 text-sky-300 dark:text-purple-300" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold tracking-wider text-white">Guru Cerdas</h1>
+                        <p className="text-xs text-sky-200 dark:text-purple-300 -mt-1">Asisten Digital Anda</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-xl font-bold tracking-wider text-white">Guru Cerdas</h1>
-                    <p className="text-xs text-sky-200 dark:text-purple-300 -mt-1">Asisten Digital Anda</p>
-                </div>
-            </div>
 
-            <div className="flex items-center gap-4 mb-8 p-3 rounded-xl bg-black/20 border border-white/10">
-                <img
-                    className="h-11 w-11 rounded-full object-cover border-2 border-sky-400 dark:border-purple-400"
-                    src={user?.avatarUrl}
-                    alt="User avatar"
-                />
-                <div>
-                    <p className="font-semibold text-base text-white">{user?.name}</p>
-                    <p className="text-xs text-gray-400">{user?.email}</p>
+                <div className="flex items-center gap-4 mb-8 p-3 rounded-xl bg-black/20 border border-white/10">
+                    <img
+                        className="h-11 w-11 rounded-full object-cover border-2 border-sky-400 dark:border-purple-400"
+                        src={user?.avatarUrl}
+                        alt="User avatar"
+                    />
+                    <div>
+                        <p className="font-semibold text-base text-white">{user?.name}</p>
+                        <p className="text-xs text-gray-400">{user?.email}</p>
+                    </div>
                 </div>
-            </div>
 
-            <nav className="flex-1 space-y-2">
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.href}
-                        to={item.href}
-                        end={item.href === '/dashboard'}
-                        onClick={onLinkClick}
-                        className={({ isActive }) =>
-                          `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 transform hover:bg-white/10 hover:translate-x-1 text-gray-300 hover:text-white group ${
-                            isActive ? 'bg-gradient-to-r from-sky-500 to-blue-500 dark:from-purple-600 dark:to-blue-500 shadow-lg text-white font-semibold' : ''
-                          }`
-                        }
+                <nav className="flex-1 space-y-2">
+                    {navItems.map((item) => (
+                        <NavLink
+                            key={item.href}
+                            to={item.href}
+                            end={item.href === '/dashboard'}
+                            onClick={onLinkClick}
+                            className={({ isActive }) =>
+                              `flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 transform hover:bg-white/10 hover:translate-x-1 text-gray-300 hover:text-white group ${
+                                isActive ? 'bg-gradient-to-r from-sky-500 to-blue-500 dark:from-purple-600 dark:to-blue-500 shadow-lg shadow-blue-500/40 dark:shadow-purple-500/30 text-white font-semibold' : ''
+                              }`
+                            }
+                        >
+                            <item.icon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                            <span>{item.label}</span>
+                        </NavLink>
+                    ))}
+                </nav>
+                <div className="mt-auto pt-4 border-t border-white/10">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full gap-4 px-4 py-3 text-gray-300 rounded-lg hover:bg-red-500/80 hover:text-white transition-all duration-300"
                     >
-                        <item.icon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
-                        <span>{item.label}</span>
-                    </NavLink>
-                ))}
-            </nav>
-            <div className="mt-auto pt-4 border-t border-white/10">
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center w-full gap-4 px-4 py-3 text-gray-300 rounded-lg hover:bg-red-500/80 hover:text-white transition-all duration-300"
-                >
-                    <LogoutIcon className="w-5 h-5" />
-                    <span>Logout</span>
-                </button>
+                        <LogoutIcon className="w-5 h-5" />
+                        <span>Logout</span>
+                    </button>
+                </div>
             </div>
         </aside>
     );

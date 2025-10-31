@@ -497,7 +497,7 @@
         background-color: #f8fafc; /* Light mode fallback: gray-50 */
       }
       .dark .cosmic-bg {
-        background-color: #020617; /* Dark mode: slate-950 */
+        background-color: #0f172a; /* Dark mode: slate-900 */
       }
       .cosmic-bg::before,
       .cosmic-bg::after {
@@ -533,6 +533,33 @@
         position: relative;
         z-index: 1;
       }
+      
+      /* NEW STYLES FOR UI POLISH */
+      .sidebar-bg {
+        background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 10px 10px;
+      }
+      .card-shine-hover:hover::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: inherit;
+          background: radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.15), transparent 70%);
+          opacity: 0;
+          transition: opacity 0.4s ease-out;
+          pointer-events: none;
+      }
+      .card-shine-hover:hover::before {
+          opacity: 1;
+      }
+      .schedule-card-senin { border-left-color: #3b82f6; } /* blue-500 */
+      .schedule-card-selasa { border-left-color: #10b981; } /* emerald-500 */
+      .schedule-card-rabu { border-left-color: #f59e0b; } /* amber-500 */
+      .schedule-card-kamis { border-left-color: #8b5cf6; } /* violet-500 */
+      .schedule-card-jumat { border-left-color: #f43f5e; } /* rose-500 */
     </style>
     <script>
       // Theme management script to prevent flash of wrong theme

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -28,7 +26,7 @@ const fetchGlobalSearchData = async (userId: string) => {
     if (classesRes.error) throw classesRes.error;
     if (schedulesRes.error) throw schedulesRes.error;
 
-    // FIX: Explicitly type 'student' parameter to resolve 'unknown' type being used as an index.
+    // FIX: Explicitly type the 'student' parameter in the reduce function to resolve 'unknown' type being used as an index.
     const classStudentCounts = (studentsRes.data || []).reduce((acc, student: { class_id: string; }) => {
         acc[student.class_id] = (acc[student.class_id] || 0) + 1;
         return acc;

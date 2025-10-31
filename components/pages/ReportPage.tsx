@@ -32,6 +32,16 @@ type ReportData = {
     quizPoints: QuizPointRow[],
 };
 
+// --- FIX: Define specific types for editable state to replace 'any[]' ---
+type EditableAcademicRecord = Omit<AcademicRecordRow, 'id'> & {
+    id: string | number; // Allow for 'new-...' ids
+    predikat: string;
+    deskripsi: string;
+};
+type EditableQuizPoint = Omit<QuizPointRow, 'id'> & { id: string | number };
+type EditableViolation = Omit<ViolationRow, 'id'> & { id: string | number };
+
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const fetchReportData = async (studentId: string | undefined, userId: string): Promise<ReportData> => {
@@ -112,9 +122,10 @@ const ReportPage: React.FC = () => {
         academicYear: "Tahun Ajaran 2025/2026 - Semester Ganjil"
     });
     const [studentInfo, setStudentInfo] = useState({ name: '', className: '' });
-    const [editableAcademicRecords, setEditableAcademicRecords] = useState<any[]>([]);
-    const [editableQuizPoints, setEditableQuizPoints] = useState<any[]>([]);
-    const [editableViolations, setEditableViolations] = useState<any[]>([]);
+    // --- FIX: Use specific types for state instead of any[] ---
+    const [editableAcademicRecords, setEditableAcademicRecords] = useState<EditableAcademicRecord[]>([]);
+    const [editableQuizPoints, setEditableQuizPoints] = useState<EditableQuizPoint[]>([]);
+    const [editableViolations, setEditableViolations] = useState<EditableViolation[]>([]);
     const [editableAttendanceSummary, setEditableAttendanceSummary] = useState({ Sakit: 0, Izin: 0, Alpha: 0 });
     const [behavioralNote, setBehavioralNote] = useState('Tidak ada catatan pelanggaran.');
     const [teacherNote, setTeacherNote] = useState('');
@@ -169,7 +180,7 @@ const ReportPage: React.FC = () => {
                 className: data.student.classes?.name || 'N/A',
             });
 
-            const processedAcademicRecords = data.academicRecords.map(r => ({
+            const processedAcademicRecords: EditableAcademicRecord[] = data.academicRecords.map(r => ({
                 ...r,
                 ...getPredicate(r.score),
                 deskripsi: getPredicate(r.score).deskripsi // Pastikan deskripsi awal ada
@@ -196,21 +207,43 @@ const ReportPage: React.FC = () => {
         }
     }, [data]);
     
-    const handleListChange = (setter: React.Dispatch<React.SetStateAction<any[]>>, index: number, field: string, value: any) => {
-        setter(prev => {
+    // --- FIX: Create specific, type-safe handlers for each list ---
+    const handleAcademicRecordChange = (index: number, field: keyof EditableAcademicRecord, value: string | number) => {
+        setEditableAcademicRecords(prev => {
             const newList = [...prev];
-            newList[index] = { ...newList[index], [field]: value };
+            const updatedRecord = { ...newList[index], [field]: value };
             if (field === 'score') {
-                const predicateInfo = getPredicate(Number(value));
-                newList[index] = { ...newList[index], ...predicateInfo };
+                Object.assign(updatedRecord, getPredicate(Number(value)));
             }
+            newList[index] = updatedRecord;
+            return newList;
+        });
+    };
+
+    const handleQuizPointChange = (index: number, field: keyof EditableQuizPoint, value: string | number) => {
+        setEditableQuizPoints(prev => {
+            const newList = [...prev];
+            newList[index] = { ...newList[index], [field]: value as any };
+            return newList;
+        });
+    };
+
+    const handleViolationChange = (index: number, field: keyof EditableViolation, value: string | number) => {
+        setEditableViolations(prev => {
+            const newList = [...prev];
+            newList[index] = { ...newList[index], [field]: value as any };
             return newList;
         });
     };
     
+    // --- FIX: Ensure new rows are created with all required properties ---
     const handleAddAcademicRecordRow = () => {
         setEditableAcademicRecords(prev => [...prev, {
             id: `new-${Date.now()}`,
+            student_id: studentId!,
+            user_id: user!.id,
+            created_at: new Date().toISOString(),
+            notes: '',
             subject: '',
             assessment_name: '',
             score: 0,
@@ -226,6 +259,11 @@ const ReportPage: React.FC = () => {
     const handleAddQuizPointRow = () => {
         setEditableQuizPoints(prev => [...prev, {
             id: `new-${Date.now()}`,
+            created_at: new Date().toISOString(),
+            student_id: studentId!,
+            user_id: user!.id,
+            points: 1,
+            max_points: 1,
             quiz_date: new Date().toISOString().slice(0, 10),
             quiz_name: '',
             subject: '',
@@ -239,6 +277,9 @@ const ReportPage: React.FC = () => {
     const handleAddViolationRow = () => {
         setEditableViolations(prev => [...prev, {
             id: `new-${Date.now()}`,
+            created_at: new Date().toISOString(),
+            student_id: studentId!,
+            user_id: user!.id,
             date: new Date().toISOString().slice(0, 10),
             description: '',
             points: 0,
@@ -256,7 +297,7 @@ const ReportPage: React.FC = () => {
             const prompt = `Buat deskripsi rapor untuk mata pelajaran "${subject}" dengan nilai ${score}.`;
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
             
-            handleListChange(setEditableAcademicRecords, index, 'deskripsi', response.text);
+            handleAcademicRecordChange(index, 'deskripsi', response.text);
 
         } catch (error) {
             toast.error("Gagal membuat deskripsi AI.");
@@ -274,16 +315,12 @@ const ReportPage: React.FC = () => {
         try {
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
             
-            // Construct ReportData from current editable state
             const currentReportData: ReportDataType = {
                 student: data.student,
-                // Use the editable description as notes for the PDF
                 academicRecords: editableAcademicRecords.map(r => ({ ...r, notes: r.deskripsi })),
                 quizPoints: editableQuizPoints,
                 violations: editableViolations,
-                // Attendance is not editable on this page, use original data
                 attendanceRecords: data.attendanceRecords,
-                // Reports are not directly used in new PDF, but pass them anyway
                 reports: data.reports,
             };
     
@@ -355,12 +392,12 @@ const ReportPage: React.FC = () => {
                             <tbody>
                                 {editableAcademicRecords.map((record, index) => (
                                     <tr key={record.id}><td className="border p-2 text-center">{index + 1}</td>
-                                    <td className="border"><EditableCell value={record.subject} onChange={val => handleListChange(setEditableAcademicRecords, index, 'subject', val)} /></td>
-                                    <td className="border"><EditableCell value={record.assessment_name || ''} onChange={val => handleListChange(setEditableAcademicRecords, index, 'assessment_name', val)} /></td>
-                                    <td className="border"><EditableCell type="number" value={record.score} onChange={val => handleListChange(setEditableAcademicRecords, index, 'score', val)} /></td>
+                                    <td className="border"><EditableCell value={record.subject} onChange={val => handleAcademicRecordChange(index, 'subject', val)} /></td>
+                                    <td className="border"><EditableCell value={record.assessment_name || ''} onChange={val => handleAcademicRecordChange(index, 'assessment_name', val)} /></td>
+                                    <td className="border"><EditableCell type="number" value={record.score} onChange={val => handleAcademicRecordChange(index, 'score', val)} /></td>
                                     <td className="border p-2 text-center">{record.predikat}</td>
                                     <td className="border relative group">
-                                        <EditableCell type="textarea" value={record.deskripsi} onChange={val => handleListChange(setEditableAcademicRecords, index, 'deskripsi', val)} rows={3}/>
+                                        <EditableCell type="textarea" value={record.deskripsi} onChange={val => handleAcademicRecordChange(index, 'deskripsi', val)} rows={3}/>
                                         <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7 print:hidden opacity-0 group-hover:opacity-100" onClick={() => handleGenerateSubjectNote(index, record.subject, record.score)} disabled={generatingSubjectNote === index}>{generatingSubjectNote === index ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div> : <SparklesIcon className="w-4 h-4 text-purple-500"/>}</Button>
                                     </td>
                                     <td className="border p-1 text-center print:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleRemoveAcademicRecordRow(index)}><TrashIcon className="w-4 h-4"/></Button></td>

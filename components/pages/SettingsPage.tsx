@@ -473,7 +473,7 @@ const SettingsPage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-8 p-4 md:p-6 animate-fade-in-up">
+        <div className="space-y-8 p-4 md:p-6 animate-fade-in-up max-w-7xl mx-auto">
             <header className="relative p-8 rounded-2xl bg-gradient-to-br from-indigo-700 via-purple-800 to-slate-900 text-white shadow-2xl shadow-indigo-500/30 overflow-hidden">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full"></div><div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-white/10 rounded-full"></div>
                 <div className="relative z-10"><h1 className="text-3xl md:text-4xl font-bold">Pengaturan</h1><p className="mt-2 text-indigo-200 max-w-2xl">Kelola profil, tampilan, dan preferensi notifikasi Anda di satu tempat.</p></div>

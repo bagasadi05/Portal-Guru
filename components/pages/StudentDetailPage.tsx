@@ -711,7 +711,7 @@ const StudentDetailPage = () => {
 
 
     return (
-        <div className="space-y-8 p-4 md:p-6 animate-fade-in-up bg-gray-950 min-h-full">
+        <div className="space-y-8 p-4 md:p-6 animate-fade-in-up bg-gray-950 min-h-full max-w-7xl mx-auto">
             <div className="no-print">
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">

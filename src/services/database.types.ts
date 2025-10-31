@@ -307,7 +307,7 @@ export type Database = {
         Returns: undefined
       }
       delete_user_account: {
-// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
+        // FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}
         Returns: undefined
       }
@@ -380,7 +380,7 @@ export type Database = {
         }[]
       }
       get_weekly_attendance_summary: {
-// FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
+        // FIX: Changed 'Record<string, unknown>' to '{}' for functions with no arguments to fix type inference.
         Args: {}
         Returns: {
           day: string
