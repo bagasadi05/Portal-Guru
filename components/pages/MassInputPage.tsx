@@ -178,7 +178,7 @@ const MassInputPage: React.FC = () => {
             if (error) throw error;
             return data || [];
         },
-        enabled: (mode === 'delete_subject_grade') && !!selectedClass && !!subjectGradeInfo.subject && !!subjectGradeInfo.assessment_name && !!studentsData,
+        enabled: (mode === 'subject_grade' || mode === 'delete_subject_grade') && !!selectedClass && !!subjectGradeInfo.subject && !!subjectGradeInfo.assessment_name && !!studentsData,
     });
 
 
@@ -197,6 +197,18 @@ const MassInputPage: React.FC = () => {
             setSelectedClass(classes[0].id);
         }
     }, [classes, selectedClass]);
+    
+    useEffect(() => {
+        if (mode === 'subject_grade' && existingGrades) {
+            const initialScores = existingGrades.reduce((acc, record) => {
+                acc[record.student_id] = String(record.score);
+                return acc;
+            }, {} as Record<string, string>);
+            setScores(initialScores);
+        } else if (mode !== 'subject_grade') {
+            setScores({});
+        }
+    }, [existingGrades, mode]);
 
     const studentsWithGrades = useMemo(() => new Set(existingGrades?.map(g => g.student_id)), [existingGrades]);
 
@@ -304,10 +316,11 @@ const MassInputPage: React.FC = () => {
                 }
                 case 'subject_grade': {
                     if (!subjectGradeInfo.subject || !subjectGradeInfo.assessment_name || gradedCount === 0) throw new Error("Mata pelajaran, nama penilaian, dan setidaknya satu nilai harus diisi.");
-                    // FIX: Explicitly type `score` as string to allow calling `trim()`.
-                    const records: Database['public']['Tables']['academic_records']['Insert'][] = Object.entries(scores)
+                    const existingGradesMap = new Map((existingGrades || []).map(g => [g.student_id, g.id]));
+                    const records = Object.entries(scores)
                         .filter(([, score]: [string, string]) => score && score.trim() !== '')
-                        .map(([student_id, score]) => ({ 
+                        .map(([student_id, score]: [string, string]) => ({
+                            id: existingGradesMap.get(student_id) || crypto.randomUUID(),
                             subject: subjectGradeInfo.subject,
                             assessment_name: subjectGradeInfo.assessment_name,
                             notes: subjectGradeInfo.notes,
@@ -315,7 +328,9 @@ const MassInputPage: React.FC = () => {
                             student_id, 
                             user_id: user.id 
                         }));
-                    const { error } = await supabase.from('academic_records').upsert(records, { onConflict: 'student_id, subject, assessment_name' }); if (error) throw error; return `Nilai untuk ${records.length} siswa berhasil disimpan.`;
+                    const { error } = await supabase.from('academic_records').upsert(records);
+                    if (error) throw error; 
+                    return `Nilai untuk ${records.length} siswa berhasil disimpan.`;
                 }
                 case 'violation': {
                     if (!selectedViolation || selectedStudentIds.size === 0) throw new Error("Jenis pelanggaran dan siswa harus dipilih.");

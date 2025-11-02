@@ -2,15 +2,16 @@ import React from 'react';
 import { AlertTriangleIcon } from './Icons';
 import { Button } from './ui/Button';
 
-// FIX: Switched to interface for better declaration merging and to potentially resolve obscure type errors.
-interface ErrorBoundaryProps {
+// FIX: Reverting to `type` from `interface` to resolve an obscure type error where `this.props` was not recognized on the component instance. The rest of the codebase appears to prefer `type` as well.
+type ErrorBoundaryProps = {
   children: React.ReactNode;
-}
+};
 
-interface State {
+// FIX: Changed interface to type to resolve issue with `this.props` not being recognized.
+type State = {
   hasError: boolean;
   error?: Error;
-}
+};
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, State> {
   // FIX: Initialize state as a class property to avoid constructor issues and ensure `this.state` is always available.

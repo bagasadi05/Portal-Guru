@@ -20,7 +20,7 @@ type ClassRow = Database['public']['Tables']['classes']['Row'];
 type StudentRow = Database['public']['Tables']['students']['Row'];
 type AttendanceRow = Database['public']['Tables']['attendance']['Row'];
 type StudentWithClass = StudentRow & { classes: Pick<ClassRow, 'name'> | null };
-type AttendanceRecord = { status: AttendanceStatus; note: string };
+type AttendanceRecord = { id?: string; status: AttendanceStatus; note: string };
 type AiAnalysis = {
     perfect_attendance: string[];
     frequent_absentees: { student_name: string; absent_days: number; }[];
@@ -103,7 +103,7 @@ const AttendancePage: React.FC = () => {
             const { data: attendanceData, error: attendanceError } = await supabase.from('attendance').select('*').eq('date', selectedDate).in('student_id', students.map(s => s.id));
             if (attendanceError) throw attendanceError;
             return (attendanceData || []).reduce((acc, record: AttendanceRow) => {
-                acc[record.student_id] = { status: record.status as AttendanceStatus, note: record.notes || '' };
+                acc[record.student_id] = { id: record.id, status: record.status as AttendanceStatus, note: record.notes || '' };
                 return acc;
             }, {} as Record<string, AttendanceRecord>);
         },
@@ -118,12 +118,12 @@ const AttendancePage: React.FC = () => {
     const { mutate: saveAttendance, isPending: isSaving } = useMutation<
         { synced: boolean },
         Error,
-        Database['public']['Tables']['attendance']['Insert'][],
+        (Database['public']['Tables']['attendance']['Insert'] & { id?: string })[],
         { previousAttendance: Record<string, AttendanceRecord> | undefined }
     >({
-        mutationFn: async (recordsToUpsert: Database['public']['Tables']['attendance']['Insert'][]) => {
+        mutationFn: async (recordsToUpsert: (Database['public']['Tables']['attendance']['Insert'] & { id?: string })[]) => {
             if (isOnline) {
-                const { error } = await supabase.from('attendance').upsert(recordsToUpsert, { onConflict: 'student_id, date' });
+                const { error } = await supabase.from('attendance').upsert(recordsToUpsert);
                 if (error) throw error;
                 return { synced: true };
             } else {
@@ -131,7 +131,6 @@ const AttendancePage: React.FC = () => {
                     table: 'attendance',
                     operation: 'upsert',
                     payload: recordsToUpsert,
-                    onConflict: 'student_id, date',
                 });
                 return { synced: false };
             }
@@ -144,7 +143,7 @@ const AttendancePage: React.FC = () => {
                 const newData = { ...old };
                 recordsToUpsert.forEach(record => {
                     if (record.student_id) {
-                        newData[record.student_id] = { status: record.status as AttendanceStatus, note: record.notes || '' };
+                        newData[record.student_id] = { id: record.id, status: record.status as AttendanceStatus, note: record.notes || '' };
                     }
                 });
                 return newData;
@@ -185,7 +184,7 @@ const AttendancePage: React.FC = () => {
     const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
         setAttendanceRecords(prev => ({
             ...prev,
-            [studentId]: { status, note: (status === 'Izin' || status === 'Sakit') ? (prev[studentId]?.note || '') : '' }
+            [studentId]: { ...prev[studentId], status, note: (status === 'Izin' || status === 'Sakit') ? (prev[studentId]?.note || '') : '' }
         }));
     };
     
@@ -218,9 +217,13 @@ const AttendancePage: React.FC = () => {
             recordsToSave[student.id] = { status: AttendanceStatus.Hadir, note: '' };
         });
         
-        // FIX: Explicitly type the `record` parameter in the map function to resolve 'unknown' type errors.
-        const recordsToUpsert: Database['public']['Tables']['attendance']['Insert'][] = Object.entries(recordsToSave).map(([student_id, record]: [string, AttendanceRecord]) => ({
-            student_id, date: selectedDate, status: record.status, notes: record.note, user_id: user.id
+        const recordsToUpsert = Object.entries(recordsToSave).map(([student_id, record]: [string, AttendanceRecord]) => ({
+            id: record.id || crypto.randomUUID(),
+            student_id, 
+            date: selectedDate, 
+            status: record.status, 
+            notes: record.note, 
+            user_id: user.id
         }));
 
         saveAttendance(recordsToUpsert);
