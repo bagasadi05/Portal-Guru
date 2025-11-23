@@ -19,6 +19,14 @@ const navItems = [
   { href: '/pengaturan', label: 'Pengaturan', icon: SettingsIcon },
 ];
 
+const mobileNavItems = [
+  { href: '/dashboard', label: 'Home', icon: HomeIcon },
+  { href: '/absensi', label: 'Absensi', icon: ClipboardIcon },
+  { href: '/siswa', label: 'Siswa', icon: UsersIcon },
+  { href: '/jadwal', label: 'Jadwal', icon: CalendarIcon },
+  { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
+];
+
 interface SidebarProps {
   onLinkClick?: () => void;
 }
@@ -198,9 +206,36 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto">
+                <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
                     {children}
                 </main>
+
+                {/* Bottom Navigation for Mobile */}
+                <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-800/50">
+                    <div className="flex items-center justify-around h-16 px-2">
+                        {mobileNavItems.map((item) => (
+                            <NavLink
+                                key={item.href}
+                                to={item.href}
+                                end={item.href === '/dashboard'}
+                                className={({ isActive }) =>
+                                    `flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+                                        isActive
+                                            ? 'text-sky-600 dark:text-purple-400'
+                                            : 'text-gray-500 dark:text-gray-400'
+                                    }`
+                                }
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        <item.icon className={`w-6 h-6 transition-transform ${isActive ? 'scale-110' : ''}`} />
+                                        <span className="text-xs font-medium">{item.label}</span>
+                                    </>
+                                )}
+                            </NavLink>
+                        ))}
+                    </div>
+                </nav>
             </div>
 
             <GlobalSearch isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} />

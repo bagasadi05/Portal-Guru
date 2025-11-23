@@ -481,11 +481,11 @@ const AttendancePage: React.FC = () => {
     };
 
     return (
-        <div className="w-full h-full p-4 sm:p-6 md:p-8 flex flex-col">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="w-full min-h-full p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Pendataan Absensi</h1>
-                    <p className="mt-1 text-gray-600 dark:text-indigo-200">Kelola kehadiran siswa dengan mudah dan cepat.</p>
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Pendataan Absensi</h1>
+                    <p className="mt-1 text-sm sm:text-base text-gray-600 dark:text-indigo-200">Kelola kehadiran siswa dengan mudah.</p>
                 </div>
                 <div className="flex gap-2 self-end md:self-center">
                     <Button onClick={handleAnalyzeAttendance} variant="outline" disabled={!isOnline}><BrainCircuitIcon className="w-4 h-4 mr-2 text-sky-500 dark:text-purple-400"/>Analisis AI</Button>
@@ -513,22 +513,22 @@ const AttendancePage: React.FC = () => {
                 )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                 {statusOptions.map(({ value, label, icon: Icon, color }) => {
                     const styles = statusStyles[color];
                     return (
                         <div key={value} onClick={() => setQuickMarkStatus(quickMarkStatus === value ? null : value)}
-                            className={`p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all duration-300 transform-gpu bg-white dark:bg-black/20 border-2 ${quickMarkStatus === value ? styles.active : 'border-gray-200 dark:border-white/20'} ${styles.hover} hover:-translate-y-1`}>
-                            <Icon className={`w-6 h-6 ${styles.icon}`}/>
-                            <div><p className="font-bold text-gray-900 dark:text-white">{label}</p><p className="text-xs text-gray-500 dark:text-gray-400">{attendanceSummary[value]} siswa</p></div>
+                            className={`p-3 sm:p-4 rounded-lg sm:rounded-xl flex items-center gap-2 sm:gap-3 cursor-pointer transition-all duration-300 transform-gpu bg-white dark:bg-black/20 border-2 ${quickMarkStatus === value ? styles.active : 'border-gray-200 dark:border-white/20'} ${styles.hover} hover:-translate-y-1`}>
+                            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${styles.icon} flex-shrink-0`}/>
+                            <div className="min-w-0"><p className="font-bold text-sm sm:text-base text-gray-900 dark:text-white truncate">{label}</p><p className="text-xs text-gray-500 dark:text-gray-400">{attendanceSummary[value]} siswa</p></div>
                         </div>
                     );
                 })}
             </div>
 
-            <main className="flex-grow bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-gray-200 dark:border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Daftar Siswa ({students?.length || 0})</h3>
+            <main className="bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col mb-4">
+                <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <h3 className="font-semibold text-base sm:text-lg text-gray-900 dark:text-white">Daftar Siswa ({students?.length || 0})</h3>
                     <div className="flex items-center gap-2 flex-wrap">
                         {bulkSelectMode && selectedStudents.size > 0 && (
                             <>
@@ -547,9 +547,9 @@ const AttendancePage: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex-grow overflow-y-auto">
-                    {isLoadingStudents ? <div className="p-8 text-center">Memuat daftar siswa...</div> :
-                     !students || students.length === 0 ? <div className="p-8 text-center text-gray-400">Pilih kelas untuk memulai absensi.</div> :
+                <div className="p-3 sm:p-4">
+                    {isLoadingStudents ? <div className="p-4 sm:p-8 text-center">Memuat daftar siswa...</div> :
+                     !students || students.length === 0 ? <div className="p-4 sm:p-8 text-center text-gray-400">Pilih kelas untuk memulai absensi.</div> :
                      <div className="divide-y divide-gray-200 dark:divide-white/10">
                         {bulkSelectMode && students && students.length > 0 && (
                             <div className="p-4 bg-gray-50 dark:bg-white/5 flex items-center gap-3 border-b border-gray-300 dark:border-white/20">
