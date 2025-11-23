@@ -2,7 +2,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Database } from './database.types';
 
-// Define the types needed from the database
 type StudentRow = Database['public']['Tables']['students']['Row'];
 type ClassRow = Database['public']['Tables']['classes']['Row'];
 type ReportRow = Database['public']['Tables']['reports']['Row'];
@@ -11,7 +10,6 @@ type AcademicRecordRow = Database['public']['Tables']['academic_records']['Row']
 type ViolationRow = Database['public']['Tables']['violations']['Row'];
 type QuizPointRow = Database['public']['Tables']['quiz_points']['Row'];
 
-// FIX: Correct the syntax for the Pick utility type. Keys should be a union string literal.
 type StudentWithClass = StudentRow & { classes: Pick<ClassRow, 'id' | 'name'> | null };
 
 export type ReportData = {
@@ -30,8 +28,6 @@ type AppUser = {
     avatarUrl: string;
 }
 
-// --- NEW PROFESSIONAL PDF GENERATOR ---
-
 export const generateStudentReport = (
     doc: jsPDF,
     reportData: ReportData,
@@ -39,23 +35,26 @@ export const generateStudentReport = (
     user: AppUser | null
 ) => {
     const { student, academicRecords, quizPoints, violations, attendanceRecords } = reportData;
-    
+
     const PAGE_HEIGHT = doc.internal.pageSize.getHeight();
     const PAGE_WIDTH = doc.internal.pageSize.getWidth();
     const MARGIN = 15;
-    let y = 0;
+    let currentY = 0;
 
-    const addHeader = () => {
-        doc.setFillColor(30, 41, 59); // gray-800
-        doc.rect(0, 0, PAGE_WIDTH, 28, 'F');
+    const addHeader = (isFirstPage = false) => {
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, PAGE_WIDTH, 30, 'F');
+
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text("LAPORAN HASIL BELAJAR SISWA", PAGE_WIDTH / 2, 14, { align: 'center' });
+        doc.text("LAPORAN HASIL BELAJAR SISWA", PAGE_WIDTH / 2, 12, { align: 'center' });
+
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text("MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN", PAGE_WIDTH / 2, 21, { align: 'center' });
-        y = 38;
+        doc.text("MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN", PAGE_WIDTH / 2, 22, { align: 'center' });
+
+        currentY = isFirstPage ? 40 : 35;
     };
 
     const addFooter = () => {
@@ -64,128 +63,254 @@ export const generateStudentReport = (
             doc.setPage(i);
             doc.setFontSize(8);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(156, 163, 175);
-            doc.text(`Rapor ${student.name} - Halaman ${i} dari ${pageCount}`, MARGIN, PAGE_HEIGHT - 8);
-            doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 8, { align: 'right' });
+            doc.setTextColor(107, 114, 128);
+
+            const footerText = `Halaman ${i} dari ${pageCount}`;
+            const dateText = `Dicetak: ${new Date().toLocaleDateString('id-ID')}`;
+
+            doc.text(footerText, PAGE_WIDTH / 2, PAGE_HEIGHT - 8, { align: 'center' });
+            doc.text(dateText, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 8, { align: 'right' });
         }
     };
-    
-    const checkPageBreak = (spaceNeeded: number) => {
-        if (y + spaceNeeded > PAGE_HEIGHT - MARGIN) {
+
+    const checkPageBreak = (requiredSpace: number) => {
+        if (currentY + requiredSpace > PAGE_HEIGHT - 20) {
             doc.addPage();
-            addHeader();
+            addHeader(false);
         }
     };
 
-    const drawSectionHeader = (title: string) => {
-        checkPageBreak(12); // Space for header and some padding
-        doc.setFontSize(12);
+    const drawSectionTitle = (title: string, bgColor = false) => {
+        checkPageBreak(12);
+
+        if (bgColor) {
+            doc.setFillColor(30, 41, 59);
+            doc.rect(MARGIN - 2, currentY - 5, PAGE_WIDTH - (MARGIN * 2) + 4, 10, 'F');
+            doc.setTextColor(255, 255, 255);
+        } else {
+            doc.setTextColor(30, 41, 59);
+        }
+
+        doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
+        doc.text(title, MARGIN, currentY);
+
         doc.setTextColor(30, 41, 59);
-        doc.text(title, MARGIN, y);
-        y += 7;
-    };
-    
-    const tableConfig: any = {
-        theme: 'grid',
-        headStyles: { font: 'helvetica', fontStyle: 'bold', fillColor: [30, 41, 59], textColor: '#ffffff', fontSize: 9 },
-        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, lineColor: '#e5e7eb', lineWidth: 0.2 },
-        alternateRowStyles: { fillColor: '#f9fafb' },
-        didDrawPage: () => addHeader(), // Redraw header on auto-added pages
+        currentY += 10;
     };
 
-    // --- 1. START DOCUMENT ---
-    addHeader();
-    
-    // --- 2. STUDENT INFO ---
+    addHeader(true);
+
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Nama Siswa', MARGIN, y); doc.text(`: ${student.name}`, MARGIN + 40, y);
-    doc.text('Kelas', MARGIN, y + 6); doc.text(`: ${student.classes?.name || 'N/A'}`, MARGIN + 40, y + 6);
-    y += 14;
+    doc.setFont('helvetica', 'normal');
 
-    // --- 3. ACADEMIC RECORDS ---
+    const infoData = [
+        ['Nama Siswa', ': ' + student.name],
+        ['Kelas', ': ' + (student.classes?.name || 'N/A')],
+        ['Tahun Ajaran', `: ${new Date().getFullYear()} / ${new Date().getFullYear() + 1}`]
+    ];
+
+    autoTable(doc, {
+        startY: currentY,
+        body: infoData,
+        theme: 'plain',
+        styles: {
+            fontSize: 10,
+            cellPadding: 2,
+            font: 'helvetica'
+        },
+        columnStyles: {
+            0: { cellWidth: 35, fontStyle: 'bold' },
+            1: { cellWidth: 'auto' }
+        },
+        margin: { left: MARGIN }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+
     if (academicRecords.length > 0) {
-        drawSectionHeader('A. Capaian Akademik');
+        drawSectionTitle('A. Capaian Akademik', true);
+
         const getPredicate = (score: number) => {
-            if (score >= 86) return 'A'; if (score >= 76) return 'B'; if (score >= 66) return 'C'; return 'D';
+            if (score >= 90) return 'A';
+            if (score >= 80) return 'B';
+            if (score >= 70) return 'C';
+            if (score >= 60) return 'D';
+            return 'E';
         };
-        const academicBody = academicRecords.map((r, i) => [
-            i + 1, r.subject, r.assessment_name || '-', r.score, getPredicate(r.score), r.notes || ''
-        ]);
+
+        const groupedRecords: { [key: string]: AcademicRecordRow[] } = {};
+        academicRecords.forEach(record => {
+            const subject = record.subject || 'Lainnya';
+            if (!groupedRecords[subject]) {
+                groupedRecords[subject] = [];
+            }
+            groupedRecords[subject].push(record);
+        });
+
+        const academicBody: any[] = [];
+        let rowNum = 1;
+
+        Object.entries(groupedRecords).forEach(([subject, records]) => {
+            records.forEach((record, index) => {
+                academicBody.push([
+                    rowNum++,
+                    index === 0 ? subject : '',
+                    record.assessment_name || '-',
+                    record.score,
+                    getPredicate(record.score),
+                    record.notes || 'Capaian sesuai dengan nilai yang diperoleh.'
+                ]);
+            });
+        });
+
         autoTable(doc, {
-            ...tableConfig,
-            startY: y,
+            startY: currentY,
             head: [['No', 'Mata Pelajaran', 'Penilaian', 'Nilai', 'Predikat', 'Deskripsi Capaian']],
             body: academicBody,
-            columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 3: { cellWidth: 12, halign: 'center' }, 4: { cellWidth: 15, halign: 'center' }, 5: { cellWidth: 'auto' } }
+            theme: 'grid',
+            headStyles: {
+                fillColor: [30, 41, 59],
+                textColor: [255, 255, 255],
+                fontSize: 9,
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            styles: {
+                fontSize: 8.5,
+                cellPadding: 3,
+                lineColor: [229, 231, 235],
+                lineWidth: 0.3,
+                font: 'helvetica'
+            },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                1: { cellWidth: 30 },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 15, halign: 'center' },
+                4: { cellWidth: 18, halign: 'center' },
+                5: { cellWidth: 'auto' }
+            },
+            alternateRowStyles: { fillColor: [249, 250, 251] },
+            margin: { left: MARGIN, right: MARGIN }
         });
-        y = (doc as any).lastAutoTable.finalY + 10;
+
+        currentY = (doc as any).lastAutoTable.finalY + 10;
     }
 
-    // --- 4. ACTIVITY POINTS ---
-    if (quizPoints.length > 0) {
-        drawSectionHeader('B. Catatan Keaktifan & Pengembangan Diri');
-        const quizBody = quizPoints.map((r, i) => [i + 1, new Date(r.quiz_date).toLocaleDateString('id-ID'), r.quiz_name, r.subject]);
-        autoTable(doc, { ...tableConfig, startY: y, head: [['No', 'Tanggal', 'Aktivitas', 'Keterangan']], body: quizBody });
-        y = (doc as any).lastAutoTable.finalY + 10;
-    }
+    drawSectionTitle('B. Absensi & Perilaku', true);
 
-    // --- 5. ATTENDANCE & BEHAVIOR ---
-    drawSectionHeader('C. Absensi & Perilaku');
     const attendanceSummary = attendanceRecords.reduce((acc, record) => {
-        if (record.status !== 'Hadir') { (acc as any)[record.status] = ((acc as any)[record.status] || 0) + 1; }
+        if (record.status !== 'Hadir') {
+            (acc as any)[record.status] = ((acc as any)[record.status] || 0) + 1;
+        }
         return acc;
     }, { Sakit: 0, Izin: 0, Alpha: 0 });
-    
+
+    const tableStartY = currentY;
+    const tableWidth = (PAGE_WIDTH - MARGIN * 2 - 5) / 2;
+
     autoTable(doc, {
-        ...tableConfig,
-        startY: y,
+        startY: tableStartY,
         head: [['Ketidakhadiran']],
         body: [
             [`Sakit: ${attendanceSummary.Sakit} hari`],
             [`Izin: ${attendanceSummary.Izin} hari`],
-            [`Tanpa Keterangan: ${attendanceSummary.Alpha} hari`],
+            [`Tanpa Keterangan (Alpha): ${attendanceSummary.Alpha} hari`]
         ],
-        tableWidth: (PAGE_WIDTH - MARGIN * 2) / 2 - 5,
-        margin: { left: MARGIN },
+        theme: 'grid',
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontSize: 9,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [229, 231, 235],
+            lineWidth: 0.3
+        },
+        tableWidth: tableWidth,
+        margin: { left: MARGIN }
     });
-    const attendanceTableFinalY = (doc as any).lastAutoTable.finalY;
+
+    const leftTableFinalY = (doc as any).lastAutoTable.finalY;
 
     const violationBody = violations.length > 0
-        ? violations.map(v => [`- ${v.description} (${v.points} poin)`])
+        ? violations.map(v => [`${v.description} (${v.points} poin)`])
         : [['Siswa menunjukkan sikap yang baik dan terpuji.']];
+
     autoTable(doc, {
-        ...tableConfig,
-        startY: y,
+        startY: tableStartY,
         head: [['Catatan Perilaku']],
         body: violationBody,
-        tableWidth: (PAGE_WIDTH - MARGIN * 2) / 2 - 5,
-        margin: { left: PAGE_WIDTH / 2 + 5 },
+        theme: 'grid',
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontSize: 9,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [229, 231, 235],
+            lineWidth: 0.3
+        },
+        tableWidth: tableWidth,
+        margin: { left: PAGE_WIDTH / 2 + 2.5 }
     });
-    y = Math.max(attendanceTableFinalY, (doc as any).lastAutoTable.finalY) + 10;
 
-    // --- 6. TEACHER'S NOTE ---
-    drawSectionHeader("D. Catatan Wali Kelas");
+    currentY = Math.max(leftTableFinalY, (doc as any).lastAutoTable.finalY) + 10;
+
+    drawSectionTitle('C. Catatan Wali Kelas', true);
+
     const noteText = teacherNote || 'Tidak ada catatan khusus untuk semester ini.';
-    const noteLines = doc.splitTextToSize(noteText, PAGE_WIDTH - MARGIN * 2);
-    const noteHeight = noteLines.length * 5; // Approximate height
+    const noteLines = doc.splitTextToSize(noteText, PAGE_WIDTH - MARGIN * 2 - 10);
+    const noteHeight = noteLines.length * 5 + 10;
+
     checkPageBreak(noteHeight);
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(noteLines, MARGIN, y);
-    y += noteHeight + 5;
 
-    // --- 7. SIGNATURE BLOCK ---
-    const signatureBlockHeight = 45;
-    checkPageBreak(signatureBlockHeight);
-    const signatureX = PAGE_WIDTH - MARGIN - 70;
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(`Madiun, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, signatureX, y); y += 6;
-    doc.text('Wali Kelas,', signatureX, y); y += 25;
+    doc.setFillColor(249, 250, 251);
+    doc.rect(MARGIN, currentY, PAGE_WIDTH - MARGIN * 2, noteHeight, 'F');
+
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(MARGIN, currentY, PAGE_WIDTH - MARGIN * 2, noteHeight, 'S');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.text(noteLines, MARGIN + 5, currentY + 7);
+
+    currentY += noteHeight + 15;
+
+    const signatureHeight = 40;
+    checkPageBreak(signatureHeight);
+
+    const col1X = MARGIN + 20;
+    const col2X = PAGE_WIDTH - MARGIN - 60;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+
+    doc.text('Orang Tua/Wali', col1X, currentY, { align: 'center' });
+
+    doc.text(`Madiun, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, col2X, currentY, { align: 'center' });
+    doc.text('Wali Kelas', col2X, currentY + 6, { align: 'center' });
+
+    currentY += 30;
+
+    doc.text('(___________________)', col1X, currentY, { align: 'center' });
+
     doc.setFont('helvetica', 'bold');
-    doc.text(user?.name || '___________________', signatureX, y);
+    const teacherName = user?.name || '___________________';
+    doc.text(teacherName, col2X, currentY, { align: 'center' });
 
-    // --- 8. FINALIZE ---
+    doc.setLineWidth(0.5);
+    doc.line(col2X - 30, currentY - 1, col2X + 30, currentY - 1);
+
     addFooter();
 };
