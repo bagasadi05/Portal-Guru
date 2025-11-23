@@ -116,6 +116,7 @@ const MassInputPage: React.FC = () => {
     const [noteMethod, setNoteMethod] = useState<'ai' | 'template'>('ai');
     const [templateNote, setTemplateNote] = useState('Ananda [Nama Siswa] menunjukkan perkembangan yang baik semester ini. Terus tingkatkan semangat belajar dan jangan ragu bertanya jika ada kesulitan.');
     const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ isOpen: boolean; count: number }>({ isOpen: false, count: 0 });
+    const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
     
     useEffect(() => {
         if (location.state?.prefill) {
@@ -308,6 +309,16 @@ const MassInputPage: React.FC = () => {
     };
     
     const handleScoreChange = (studentId: string, value: string) => {
+        const numValue = Number(value);
+        const errors = { ...validationErrors };
+
+        if (value && (isNaN(numValue) || numValue < 0 || numValue > 100)) {
+            errors[studentId] = 'Nilai harus antara 0-100';
+        } else {
+            delete errors[studentId];
+        }
+
+        setValidationErrors(errors);
         setScores(prev => ({...prev, [studentId]: value}));
     };
     
@@ -330,20 +341,28 @@ const MassInputPage: React.FC = () => {
                 }
                 case 'subject_grade': {
                     if (!subjectGradeInfo.subject || !subjectGradeInfo.assessment_name || gradedCount === 0) throw new Error("Mata pelajaran, nama penilaian, dan setidaknya satu nilai harus diisi.");
+                    if (Object.keys(validationErrors).length > 0) throw new Error("Perbaiki nilai yang tidak valid sebelum menyimpan.");
+
                     const existingGradesMap = new Map((existingGrades || []).map(g => [g.student_id, g.id]));
                     const records = Object.entries(scores)
                         .filter(([, score]: [string, string]) => score && score.trim() !== '')
-                        .map(([student_id, score]: [string, string]) => ({
-                            id: existingGradesMap.get(student_id) || crypto.randomUUID(),
-                            subject: subjectGradeInfo.subject,
-                            assessment_name: subjectGradeInfo.assessment_name,
-                            notes: subjectGradeInfo.notes,
-                            score: Number(score), 
-                            student_id, 
-                            user_id: user.id 
-                        }));
+                        .map(([student_id, score]: [string, string]) => {
+                            const numScore = Number(score);
+                            if (numScore < 0 || numScore > 100) {
+                                throw new Error(`Nilai untuk siswa tidak valid: ${numScore}. Harus antara 0-100.`);
+                            }
+                            return {
+                                id: existingGradesMap.get(student_id) || crypto.randomUUID(),
+                                subject: subjectGradeInfo.subject,
+                                assessment_name: subjectGradeInfo.assessment_name,
+                                notes: subjectGradeInfo.notes,
+                                score: numScore,
+                                student_id,
+                                user_id: user.id
+                            };
+                        });
                     const { error } = await supabase.from('academic_records').upsert(records);
-                    if (error) throw error; 
+                    if (error) throw error;
                     return `Nilai untuk ${records.length} siswa berhasil disimpan.`;
                 }
                 case 'violation': {
@@ -555,9 +574,20 @@ const MassInputPage: React.FC = () => {
                     <Modal isOpen={confirmDeleteModal.isOpen} onClose={() => setConfirmDeleteModal({ isOpen: false, count: 0 })} title="Konfirmasi Hapus Nilai">
                         <div className="space-y-4">
                             <p className="text-sm text-gray-600 dark:text-gray-400">Anda akan menghapus <strong className="text-white">{confirmDeleteModal.count} data nilai</strong> untuk penilaian <strong className="text-white">"{subjectGradeInfo.assessment_name}"</strong>. Aksi ini tidak dapat dibatalkan.</p>
-                            <div className="flex justify-end gap-2 pt-4">
+                            <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Ketik <strong className="text-red-500">HAPUS</strong> untuk mengonfirmasi:</p>
+                                <input type="text" id="delete-confirm-input" placeholder="Ketik HAPUS" className="w-full px-3 py-2 text-sm border rounded-md mb-3 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
                                 <Button type="button" variant="ghost" onClick={() => setConfirmDeleteModal({ isOpen: false, count: 0 })}>Batal</Button>
-                                <Button type="button" variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</Button>
+                                <Button type="button" variant="destructive" onClick={() => {
+                                    const input = document.getElementById('delete-confirm-input') as HTMLInputElement;
+                                    if (input && input.value === 'HAPUS') {
+                                        handleConfirmDelete();
+                                    } else {
+                                        toast.error('Konfirmasi tidak valid. Ketik HAPUS dengan benar.');
+                                    }
+                                }} disabled={isDeleting}>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</Button>
                             </div>
                         </div>
                     </Modal>

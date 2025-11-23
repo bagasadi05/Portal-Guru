@@ -60,6 +60,8 @@ const AttendancePage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(today);
     const [attendanceRecords, setAttendanceRecords] = useState<Record<string, AttendanceRecord>>({});
     const [quickMarkStatus, setQuickMarkStatus] = useState<AttendanceStatus | null>(null);
+    const [bulkSelectMode, setBulkSelectMode] = useState(false);
+    const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
 
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -180,6 +182,44 @@ const AttendancePage: React.FC = () => {
         if (!students) return [];
         return students.filter(student => !attendanceRecords[student.id]);
     }, [students, attendanceRecords]);
+
+    const completionPercentage = useMemo(() => {
+        if (!students || students.length === 0) return 0;
+        const marked = students.length - unmarkedStudents.length;
+        return Math.round((marked / students.length) * 100);
+    }, [students, unmarkedStudents]);
+
+    const handleBulkStatusChange = (status: AttendanceStatus) => {
+        if (selectedStudents.size === 0) return;
+        const updatedRecords = { ...attendanceRecords };
+        selectedStudents.forEach(studentId => {
+            updatedRecords[studentId] = { ...updatedRecords[studentId], status, note: (status === 'Izin' || status === 'Sakit') ? (updatedRecords[studentId]?.note || '') : '' };
+        });
+        setAttendanceRecords(updatedRecords);
+        setSelectedStudents(new Set());
+        setBulkSelectMode(false);
+        toast.success(`Status ${selectedStudents.size} siswa diubah menjadi ${status}`);
+    };
+
+    const handleStudentCheckbox = (studentId: string) => {
+        setSelectedStudents(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(studentId)) {
+                newSet.delete(studentId);
+            } else {
+                newSet.add(studentId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = () => {
+        if (selectedStudents.size === students?.length) {
+            setSelectedStudents(new Set());
+        } else if (students) {
+            setSelectedStudents(new Set(students.map(s => s.id)));
+        }
+    };
 
     const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
         setAttendanceRecords(prev => ({
@@ -453,9 +493,24 @@ const AttendancePage: React.FC = () => {
                 </div>
             </header>
 
-            <div className="bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div><label htmlFor="class-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Pilih Kelas</label><Select id="class-select" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} disabled={isLoadingClasses}><option value="" disabled>-- Pilih Kelas --</option>{classes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
-                <div><label htmlFor="date-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Tanggal</label><Input id="date-select" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></div>
+            <div className="bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 p-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div><label htmlFor="class-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Pilih Kelas</label><Select id="class-select" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} disabled={isLoadingClasses}><option value="" disabled>-- Pilih Kelas --</option>{classes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></div>
+                    <div><label htmlFor="date-select" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Tanggal</label><Input id="date-select" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></div>
+                </div>
+
+                {students && students.length > 0 && (
+                    <div className="pt-4 border-t border-gray-200 dark:border-white/10">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Progress Absensi</span>
+                            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{completionPercentage}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                            <div className="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-500" style={{ width: `${completionPercentage}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{students.length - unmarkedStudents.length} dari {students.length} siswa telah diabsen</p>
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -472,20 +527,45 @@ const AttendancePage: React.FC = () => {
             </div>
 
             <main className="flex-grow bg-white dark:bg-white/5 dark:backdrop-blur-lg rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+                <div className="p-4 border-b border-gray-200 dark:border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Daftar Siswa ({students?.length || 0})</h3>
-                    <Button onClick={markRestAsPresent} size="sm" variant="outline" disabled={unmarkedStudents.length === 0}>Tandai Sisa Hadir ({unmarkedStudents.length})</Button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {bulkSelectMode && selectedStudents.size > 0 && (
+                            <>
+                                <span className="text-sm text-gray-600 dark:text-gray-400">{selectedStudents.size} dipilih:</span>
+                                {statusOptions.map(opt => (
+                                    <Button key={opt.value} onClick={() => handleBulkStatusChange(opt.value)} size="sm" variant="outline" className="text-xs">
+                                        <opt.icon className="w-3 h-3 mr-1" />{opt.label}
+                                    </Button>
+                                ))}
+                            </>
+                        )}
+                        <Button onClick={() => { setBulkSelectMode(!bulkSelectMode); setSelectedStudents(new Set()); }} size="sm" variant={bulkSelectMode ? 'default' : 'outline'}>
+                            {bulkSelectMode ? 'Batalkan Pilihan' : 'Pilih Massal'}
+                        </Button>
+                        <Button onClick={markRestAsPresent} size="sm" variant="outline" disabled={unmarkedStudents.length === 0}>Tandai Sisa Hadir ({unmarkedStudents.length})</Button>
+                    </div>
                 </div>
                 
                 <div className="flex-grow overflow-y-auto">
                     {isLoadingStudents ? <div className="p-8 text-center">Memuat daftar siswa...</div> :
                      !students || students.length === 0 ? <div className="p-8 text-center text-gray-400">Pilih kelas untuk memulai absensi.</div> :
                      <div className="divide-y divide-gray-200 dark:divide-white/10">
+                        {bulkSelectMode && students && students.length > 0 && (
+                            <div className="p-4 bg-gray-50 dark:bg-white/5 flex items-center gap-3 border-b border-gray-300 dark:border-white/20">
+                                <input type="checkbox" checked={selectedStudents.size === students.length} onChange={handleSelectAll} className="w-4 h-4 rounded" />
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">Pilih Semua Siswa</span>
+                            </div>
+                        )}
                         {students.map((student, index) => {
                             const record = attendanceRecords[student.id];
+                            const isSelected = selectedStudents.has(student.id);
                             return (
-                                <div key={student.id} onClick={() => handleQuickMark(student.id)} className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5">
+                                <div key={student.id} onClick={() => !bulkSelectMode && handleQuickMark(student.id)} className={`p-4 flex flex-col md:flex-row gap-4 items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                                     <div className="flex items-center gap-4 w-full md:w-auto">
+                                        {bulkSelectMode && (
+                                            <input type="checkbox" checked={isSelected} onChange={(e) => { e.stopPropagation(); handleStudentCheckbox(student.id); }} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded" />
+                                        )}
                                         <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-6 text-center">{index + 1}.</span>
                                         <img src={student.avatar_url} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
                                         <p className="font-semibold text-gray-900 dark:text-white">{student.name}</p>

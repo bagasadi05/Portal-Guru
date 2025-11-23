@@ -68,6 +68,8 @@ const StudentsPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [activeClassId, setActiveClassId] = useState<string>('');
+    const [sortBy, setSortBy] = useState<'name' | 'gender'>('name');
+    const [genderFilter, setGenderFilter] = useState<'all' | 'Laki-laki' | 'Perempuan'>('all');
     
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
     const [studentModalMode, setStudentModalMode] = useState<'add' | 'edit'>('add');
@@ -174,10 +176,31 @@ const StudentsPage: React.FC = () => {
     });
 
     const studentsForActiveClass = useMemo(() => {
-        const filtered = students.filter(student => student.class_id === activeClassId);
-        if (!searchTerm) return filtered.sort((a,b) => a.name.localeCompare(b.name, 'id-ID'));
-        return filtered.filter(student => student.name.toLowerCase().includes(searchTerm.toLowerCase())).sort((a,b) => a.name.localeCompare(b.name, 'id-ID'));
-    }, [searchTerm, students, activeClassId]);
+        let filtered = students.filter(student => student.class_id === activeClassId);
+
+        if (searchTerm) {
+            filtered = filtered.filter(student => student.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+
+        if (genderFilter !== 'all') {
+            filtered = filtered.filter(student => student.gender === genderFilter);
+        }
+
+        return filtered.sort((a, b) => {
+            if (sortBy === 'name') {
+                return a.name.localeCompare(b.name, 'id-ID');
+            } else {
+                return a.gender.localeCompare(b.gender);
+            }
+        });
+    }, [searchTerm, students, activeClassId, sortBy, genderFilter]);
+
+    const studentStats = useMemo(() => {
+        const allInClass = students.filter(s => s.class_id === activeClassId);
+        const maleCount = allInClass.filter(s => s.gender === 'Laki-laki').length;
+        const femaleCount = allInClass.filter(s => s.gender === 'Perempuan').length;
+        return { total: allInClass.length, male: maleCount, female: femaleCount };
+    }, [students, activeClassId]);
 
     const handleOpenStudentModal = (mode: 'add' | 'edit', student: StudentRow | null = null) => {
         if (classes.length === 0) { toast.warning("Silakan tambah data kelas terlebih dahulu sebelum menambah siswa."); return; }
@@ -247,17 +270,34 @@ const StudentsPage: React.FC = () => {
                 <p className="mt-1 text-gray-600 dark:text-indigo-200">Kelola data siswa dan kelas Anda.</p>
             </header>
             
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="relative flex-grow w-full md:w-auto">
-                    <SearchIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                    <Input type="text" placeholder="Cari siswa di kelas ini..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 w-full" />
-                </div>
-                <div className="flex w-full md:w-auto items-center gap-2">
-                    <Button onClick={() => handleOpenStudentModal('add')} className="flex-grow md:flex-grow-0"><PlusIcon className="w-4 h-4 mr-2" />Siswa</Button>
-                    <div className="p-1 rounded-lg bg-gray-100 dark:bg-black/20 flex items-center">
-                        <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('grid')} className={viewMode === 'grid' ? 'shadow-md' : 'text-gray-500 dark:text-gray-400'}><LayoutGridIcon className="h-5 w-5"/></Button>
-                        <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('list')} className={viewMode === 'list' ? 'shadow-md' : 'text-gray-500 dark:text-gray-400'}><ListIcon className="h-5 w-5"/></Button>
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="relative flex-grow w-full md:w-auto">
+                        <SearchIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                        <Input type="text" placeholder="Cari siswa di kelas ini..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 w-full" />
                     </div>
+                    <div className="flex w-full md:w-auto items-center gap-2">
+                        <Button onClick={() => handleOpenStudentModal('add')} className="flex-grow md:flex-grow-0"><PlusIcon className="w-4 h-4 mr-2" />Siswa</Button>
+                        <div className="p-1 rounded-lg bg-gray-100 dark:bg-black/20 flex items-center">
+                            <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('grid')} className={viewMode === 'grid' ? 'shadow-md' : 'text-gray-500 dark:text-gray-400'}><LayoutGridIcon className="h-5 w-5"/></Button>
+                            <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('list')} className={viewMode === 'list' ? 'shadow-md' : 'text-gray-500 dark:text-gray-400'}><ListIcon className="h-5 w-5"/></Button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Filter:</span>
+                    <button onClick={() => setGenderFilter('all')} className={`px-3 py-1 rounded-full transition-colors ${genderFilter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Semua ({studentStats.total})</button>
+                    <button onClick={() => setGenderFilter('Laki-laki')} className={`px-3 py-1 rounded-full transition-colors ${genderFilter === 'Laki-laki' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Laki-laki ({studentStats.male})</button>
+                    <button onClick={() => setGenderFilter('Perempuan')} className={`px-3 py-1 rounded-full transition-colors ${genderFilter === 'Perempuan' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Perempuan ({studentStats.female})</button>
+
+                    <span className="text-gray-600 dark:text-gray-400 ml-4">Urutkan:</span>
+                    <button onClick={() => setSortBy('name')} className={`px-3 py-1 rounded-full transition-colors ${sortBy === 'name' ? 'bg-purple-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Nama</button>
+                    <button onClick={() => setSortBy('gender')} className={`px-3 py-1 rounded-full transition-colors ${sortBy === 'gender' ? 'bg-purple-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Gender</button>
+
+                    {(searchTerm || genderFilter !== 'all' || sortBy !== 'name') && (
+                        <button onClick={() => { setSearchTerm(''); setGenderFilter('all'); setSortBy('name'); }} className="ml-2 text-xs text-red-500 hover:text-red-600 underline">Reset Filter</button>
+                    )}
                 </div>
             </div>
 

@@ -72,6 +72,7 @@ const SchedulePage: React.FC = () => {
     const [draggedOverColumn, setDraggedOverColumn] = useState<ScheduleRow['day'] | null>(null);
 
     const [isEnablingNotifications, setIsEnablingNotifications] = useState(false);
+    const [conflictWarnings, setConflictWarnings] = useState<{ day: string; time: string; subjects: string[] }[]>([]);
 
     const [currentTime, setCurrentTime] = useState(new Date());
     const [confirmModalState, setConfirmModalState] = useState<{ isOpen: boolean; data: ScheduleRow | null }>({ isOpen: false, data: null });
@@ -98,6 +99,30 @@ const SchedulePage: React.FC = () => {
             toast.error(`Gagal memuat jadwal: ${(queryError as Error).message}`);
         }
     }, [isError, queryError, toast]);
+
+    useEffect(() => {
+        const conflicts: { day: string; time: string; subjects: string[] }[] = [];
+        daysOfWeek.forEach(day => {
+            const daySchedule = schedule.filter(s => s.day === day).sort((a, b) => a.start_time.localeCompare(b.start_time));
+            for (let i = 0; i < daySchedule.length - 1; i++) {
+                const current = daySchedule[i];
+                const next = daySchedule[i + 1];
+                const currentEnd = current.end_time;
+                const nextStart = next.start_time;
+                if (currentEnd > nextStart) {
+                    const existingConflict = conflicts.find(c => c.day === day && c.time === `${nextStart}-${currentEnd}`);
+                    if (existingConflict) {
+                        if (!existingConflict.subjects.includes(next.subject)) {
+                            existingConflict.subjects.push(next.subject);
+                        }
+                    } else {
+                        conflicts.push({ day, time: `${nextStart}-${currentEnd}`, subjects: [current.subject, next.subject] });
+                    }
+                }
+            }
+        });
+        setConflictWarnings(conflicts);
+    }, [schedule]);
 
     const scheduleMutation = useMutation({
         mutationFn: async (scheduleData: ScheduleMutationVars) => {
@@ -443,6 +468,27 @@ const SchedulePage: React.FC = () => {
             </header>
 
             {!isNotificationsEnabled && <NotificationPrompt onEnable={handleEnableNotifications} isLoading={isEnablingNotifications} />}
+
+            {conflictWarnings.length > 0 && (
+                <div className="relative z-10 bg-red-500/10 backdrop-blur-lg rounded-2xl border border-red-500/30 p-4 mb-6 animate-fade-in">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <AlertCircleIcon className="w-6 h-6 text-red-300"/>
+                        </div>
+                        <div className="flex-grow">
+                            <h4 className="font-bold text-white mb-2">Konflik Jadwal Terdeteksi!</h4>
+                            <div className="space-y-2">
+                                {conflictWarnings.map((conflict, idx) => (
+                                    <div key={idx} className="text-sm text-gray-200">
+                                        <span className="font-semibold">{conflict.day}</span> jam <span className="font-semibold">{conflict.time}</span>: {conflict.subjects.join(' & ')}
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-300 mt-2">Harap sesuaikan jadwal untuk menghindari bentrok.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <main className="relative z-10 flex-grow flex flex-col md:flex-row gap-6 md:overflow-x-auto p-2 -mx-2 md:mx-0">
                 {daysOfWeek.map((day, dayIdx) => {

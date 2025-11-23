@@ -185,6 +185,8 @@ const TasksPage: React.FC = () => {
     const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
     const [draggedOverStatus, setDraggedOverStatus] = useState<TaskStatus | null>(null);
     const [confirmDeleteModal, setConfirmDeleteModal] = useState<Task | null>(null);
+    const [filterOverdue, setFilterOverdue] = useState(false);
+    const [filterDueSoon, setFilterDueSoon] = useState(false);
 
     const { data: tasks = [], isLoading } = useQuery({
         queryKey: ['tasks', user?.id],
@@ -249,23 +251,59 @@ const TasksPage: React.FC = () => {
     });
 
     const tasksByStatus = useMemo(() => {
-        const sortedTasks = [...tasks].sort((a,b) => {
-            // Sort 'done' tasks by creation date descending (newest first)
+        let filteredTasks = [...tasks];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const threeDaysFromNow = new Date(today);
+        threeDaysFromNow.setDate(today.getDate() + 3);
+
+        if (filterOverdue) {
+            filteredTasks = filteredTasks.filter(task => {
+                if (!task.due_date || task.status === 'done') return false;
+                const dueDate = new Date(task.due_date);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate < today;
+            });
+        }
+
+        if (filterDueSoon) {
+            filteredTasks = filteredTasks.filter(task => {
+                if (!task.due_date || task.status === 'done') return false;
+                const dueDate = new Date(task.due_date);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate >= today && dueDate <= threeDaysFromNow;
+            });
+        }
+
+        const sortedTasks = filteredTasks.sort((a,b) => {
             if (a.status === 'done' && b.status === 'done') {
                 return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             }
-            // For other statuses, prioritize tasks with due dates
             const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity;
             const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity;
             if (aDate !== bDate) return aDate - bDate;
-            // If due dates are same or non-existent, sort by creation
             return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
-        
+
         return sortedTasks.reduce((acc, task) => {
             acc[task.status].push(task);
             return acc;
         }, { todo: [], in_progress: [], done: [] } as Record<TaskStatus, Task[]>);
+    }, [tasks, filterOverdue, filterDueSoon]);
+
+    const taskStats = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const overdue = tasks.filter(t => t.status !== 'done' && t.due_date && new Date(t.due_date) < today).length;
+        const dueSoon = tasks.filter(t => {
+            if (t.status === 'done' || !t.due_date) return false;
+            const dueDate = new Date(t.due_date);
+            dueDate.setHours(0, 0, 0, 0);
+            const threeDaysFromNow = new Date(today);
+            threeDaysFromNow.setDate(today.getDate() + 3);
+            return dueDate >= today && dueDate <= threeDaysFromNow;
+        }).length;
+        return { overdue, dueSoon };
     }, [tasks]);
 
     const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -354,18 +392,41 @@ const TasksPage: React.FC = () => {
                 </div>
             </div>
 
-            <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                 <div>
-                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Manajemen Tugas</h1>
-                    <p className="mt-1 text-indigo-200">Atur semua tugas Anda dengan papan Kanban interaktif.</p>
+            <header className="relative z-10 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Manajemen Tugas</h1>
+                        <p className="mt-1 text-indigo-200">Atur semua tugas Anda dengan papan Kanban interaktif.</p>
+                    </div>
+                    <Button
+                        onClick={() => setModalState({ isOpen: true, mode: 'add', data: null })}
+                        disabled={!isOnline}
+                        className="self-end md:self-center bg-white/10 border-white/20 hover:bg-white/20 text-white transition-all duration-300 hover:-translate-y-0.5"
+                    >
+                        <PlusIcon className="w-5 h-5 mr-2" /> Tambah Tugas Baru
+                    </Button>
                 </div>
-                <Button 
-                    onClick={() => setModalState({ isOpen: true, mode: 'add', data: null })} 
-                    disabled={!isOnline} 
-                    className="self-end md:self-center bg-white/10 border-white/20 hover:bg-white/20 text-white transition-all duration-300 hover:-translate-y-0.5"
-                >
-                    <PlusIcon className="w-5 h-5 mr-2" /> Tambah Tugas Baru
-                </Button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-gray-400">Filter Cepat:</span>
+                    <button
+                        onClick={() => setFilterOverdue(!filterOverdue)}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors ${filterOverdue ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    >
+                        Terlambat ({taskStats.overdue})
+                    </button>
+                    <button
+                        onClick={() => setFilterDueSoon(!filterDueSoon)}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors ${filterDueSoon ? 'bg-orange-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    >
+                        Jatuh Tempo Segera ({taskStats.dueSoon})
+                    </button>
+                    {(filterOverdue || filterDueSoon) && (
+                        <button onClick={() => { setFilterOverdue(false); setFilterDueSoon(false); }} className="ml-2 text-xs text-red-400 hover:text-red-300 underline">
+                            Reset Filter
+                        </button>
+                    )}
+                </div>
             </header>
 
             <div className="relative z-10 flex gap-6 overflow-x-auto p-2 -mx-2 flex-grow">

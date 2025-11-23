@@ -362,11 +362,15 @@ const DashboardPage: React.FC = () => {
     const { students = [], tasks = [], schedule = [], classes = [], dailyAttendanceSummary, weeklyAttendance = [] } = data || {};
     const todaySchedule = schedule.map(item => ({ ...item, className: classes.find(c => c.id === item.class_id)?.name || item.class_id }));
 
+    const attendancePercentage = students.length > 0
+        ? Math.round((dailyAttendanceSummary?.present || 0) / students.length * 100)
+        : 0;
+
     const stats = [
-      { label: 'Total Siswa', value: students.length, icon: UsersIcon, link: '/siswa', color: 'from-sky-500 to-blue-500', darkColor: 'dark:from-sky-500 dark:to-blue-500' },
-      { label: 'Kehadiran Hari Ini', value: `${dailyAttendanceSummary?.present || 0}/${students.length}`, icon: CheckSquareIcon, link: '/absensi', color: 'from-emerald-500 to-green-500', darkColor: 'dark:from-emerald-500 dark:to-green-500' },
-      { label: 'Tugas Aktif', value: tasks.length, icon: BookOpenIcon, link: '/tugas', color: 'from-amber-500 to-yellow-500', darkColor: 'dark:from-amber-500 dark:to-yellow-500' },
-      { label: 'Jadwal Hari Ini', value: schedule.length, icon: CalendarIcon, link: '/jadwal', color: 'from-violet-500 to-purple-500', darkColor: 'dark:from-violet-500 dark:to-purple-500' }
+      { label: 'Total Siswa', value: students.length, icon: UsersIcon, link: '/siswa', color: 'from-sky-500 to-blue-500', darkColor: 'dark:from-sky-500 dark:to-blue-500', description: `${classes.length} kelas` },
+      { label: 'Kehadiran Hari Ini', value: `${attendancePercentage}%`, subValue: `${dailyAttendanceSummary?.present || 0}/${students.length}`, icon: CheckSquareIcon, link: '/absensi', color: 'from-emerald-500 to-green-500', darkColor: 'dark:from-emerald-500 dark:to-green-500', description: 'siswa hadir' },
+      { label: 'Tugas Aktif', value: tasks.length, icon: BookOpenIcon, link: '/tugas', color: 'from-amber-500 to-yellow-500', darkColor: 'dark:from-amber-500 dark:to-yellow-500', description: tasks.filter(t => t.status === 'in_progress').length + ' sedang dikerjakan' },
+      { label: 'Jadwal Hari Ini', value: schedule.length, icon: CalendarIcon, link: '/jadwal', color: 'from-violet-500 to-purple-500', darkColor: 'dark:from-violet-500 dark:to-purple-500', description: nextClassIndex >= 0 ? `Berikutnya: ${schedule[nextClassIndex]?.subject}` : 'Semua selesai' }
     ];
     
     let nextClassIndex = -1;
@@ -398,9 +402,13 @@ const DashboardPage: React.FC = () => {
                                     <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>
                                         <stat.icon className="w-7 h-7" />
                                     </div>
-                                    <div>
-                                        <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                    <div className="flex-grow">
+                                        <div className="flex items-baseline gap-2">
+                                            <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                            {stat.subValue && <span className="text-sm text-gray-500 dark:text-gray-400">{stat.subValue}</span>}
+                                        </div>
                                         <p className="text-sm text-gray-600 dark:text-gray-300">{stat.label}</p>
+                                        {stat.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.description}</p>}
                                     </div>
                                 </Card>
                             </Link>
