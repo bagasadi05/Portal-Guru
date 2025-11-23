@@ -1,12 +1,17 @@
-// Caching logic for PWA offline functionality
-const CACHE_NAME = 'guru-pwa-cache-v2';
+const CACHE_NAME = 'guru-pwa-cache-v3';
+const RUNTIME_CACHE = 'guru-runtime-cache-v3';
+const IMAGE_CACHE = 'guru-image-cache-v3';
+
 const APP_SHELL_URLS = [
     '/',
     '/index.html',
     '/favicon.svg',
     '/manifest.webmanifest',
-    '/logo.svg' // Add the new logo to the app shell
+    '/logo.svg'
 ];
+
+const MAX_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
+const MAX_IMAGES = 50;
 
 // Install: cache the app shell
 self.addEventListener('install', (event) => {
@@ -20,47 +25,88 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Activate: clean up old caches
 self.addEventListener('activate', (event) => {
+    const validCaches = [CACHE_NAME, RUNTIME_CACHE, IMAGE_CACHE];
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Service Worker: Clearing old cache');
+                    if (!validCaches.includes(cacheName)) {
+                        console.log('Service Worker: Clearing old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
         })
     );
-    return self.clients.claim(); // Take control of all pages
+    return self.clients.claim();
 });
 
-// Fetch: stale-while-revalidate strategy for offline-first experience
 self.addEventListener('fetch', (event) => {
-    // For non-GET requests, just use the network.
-    if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
+    if (event.request.method !== 'GET' ||
+        event.request.url.startsWith('chrome-extension://') ||
+        event.request.url.includes('/api/') ||
+        event.request.url.includes('supabase.co')) {
         return;
     }
 
-    event.respondWith(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.match(event.request).then((cachedResponse) => {
-                const fetchPromise = fetch(event.request).then((networkResponse) => {
-                    if (networkResponse && networkResponse.status === 200) {
-                        cache.put(event.request, networkResponse.clone());
-                    }
-                    return networkResponse;
-                }).catch(err => {
-                    console.warn('Service Worker: Network request failed. Serving from cache if available.', err);
-                });
+    const url = new URL(event.request.url);
+    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url.pathname);
+    const isAppShell = APP_SHELL_URLS.some(path => url.pathname === path || url.pathname.endsWith(path));
 
-                return cachedResponse || fetchPromise;
-            });
-        })
-    );
+    if (isAppShell) {
+        event.respondWith(
+            caches.match(event.request).then(response => {
+                return response || fetch(event.request).then(fetchResponse => {
+                    return caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, fetchResponse.clone());
+                        return fetchResponse;
+                    });
+                });
+            })
+        );
+    } else if (isImage) {
+        event.respondWith(
+            caches.open(IMAGE_CACHE).then(cache => {
+                return cache.match(event.request).then(response => {
+                    if (response) return response;
+
+                    return fetch(event.request).then(fetchResponse => {
+                        if (fetchResponse && fetchResponse.status === 200) {
+                            cache.put(event.request, fetchResponse.clone());
+                            limitCacheSize(IMAGE_CACHE, MAX_IMAGES);
+                        }
+                        return fetchResponse;
+                    }).catch(() => null);
+                });
+            })
+        );
+    } else {
+        event.respondWith(
+            caches.open(RUNTIME_CACHE).then(cache => {
+                return cache.match(event.request).then(cachedResponse => {
+                    const fetchPromise = fetch(event.request).then(networkResponse => {
+                        if (networkResponse && networkResponse.status === 200) {
+                            cache.put(event.request, networkResponse.clone());
+                        }
+                        return networkResponse;
+                    }).catch(() => cachedResponse);
+
+                    return cachedResponse || fetchPromise;
+                });
+            })
+        );
+    }
 });
+
+async function limitCacheSize(cacheName, maxItems) {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length > maxItems) {
+        await cache.delete(keys[0]);
+        await limitCacheSize(cacheName, maxItems);
+    }
+}
 
 // Existing notification logic
 let timeoutIds = [];
