@@ -386,29 +386,29 @@ const DashboardPage: React.FC = () => {
     ];
 
     return (
-        <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent max-w-7xl mx-auto">
+        <div className="w-full min-h-full p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col space-y-4 sm:space-y-6 md:space-y-8 bg-transparent max-w-7xl mx-auto">
             <header>
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-shadow-md">Selamat datang kembali, {user?.name}!</h2>
-                <p className="mt-1 text-lg text-gray-600 dark:text-indigo-200">Berikut adalah ringkasan aktivitas kelas Anda hari ini.</p>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-shadow-md">Selamat datang, {user?.name}!</h2>
+                <p className="mt-1 text-sm sm:text-base md:text-lg text-gray-600 dark:text-indigo-200">Ringkasan aktivitas hari ini.</p>
             </header>
             
-            <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-6 md:gap-8">
                 {/* Left Column */}
-                <div className="xl:col-span-3 space-y-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="xl:col-span-3 space-y-4 sm:space-y-6 md:space-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                         {stats.map(stat => (
                             <Link to={stat.link} key={stat.label} className="group block">
-                                <Card className="p-4 sm:p-5 flex items-center gap-4 sm:gap-5 group-hover:-translate-y-1 card-shine-hover overflow-hidden">
-                                    <div className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>
-                                        <stat.icon className="w-7 h-7" />
+                                <Card className="p-3 sm:p-4 md:p-5 flex items-center gap-3 sm:gap-4 md:gap-5 group-hover:-translate-y-1 card-shine-hover overflow-hidden">
+                                    <div className={`flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl flex items-center justify-center bg-gradient-to-br ${stat.color} ${stat.darkColor} shadow-lg text-white transition-transform group-hover:scale-110`}>
+                                        <stat.icon className="w-6 h-6 sm:w-7 sm:h-7" />
                                     </div>
-                                    <div className="flex-grow">
-                                        <div className="flex items-baseline gap-2">
-                                            <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                                            {stat.subValue && <span className="text-sm text-gray-500 dark:text-gray-400">{stat.subValue}</span>}
+                                    <div className="flex-grow min-w-0">
+                                        <div className="flex items-baseline gap-1 sm:gap-2 flex-wrap">
+                                            <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                                            {stat.subValue && <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{stat.subValue}</span>}
                                         </div>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">{stat.label}</p>
-                                        {stat.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.description}</p>}
+                                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 truncate">{stat.label}</p>
+                                        {stat.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 line-clamp-1">{stat.description}</p>}
                                     </div>
                                 </Card>
                             </Link>
