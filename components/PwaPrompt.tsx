@@ -64,18 +64,20 @@ const PwaPrompt: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg p-4 z-[60] animate-fade-in-up">
-      <div className="bg-gray-900/80 backdrop-blur-lg text-white rounded-2xl shadow-2xl p-4 flex items-center gap-4 border border-white/10">
-        <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-          <DownloadCloudIcon className="w-6 h-6"/>
+    <div className="fixed bottom-20 lg:bottom-4 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-lg z-[60] animate-slide-up">
+      <div className="bg-gradient-to-r from-sky-600 to-blue-600 dark:from-purple-600 dark:to-blue-600 backdrop-blur-lg text-white rounded-2xl shadow-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-white/20">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+            <DownloadCloudIcon className="w-6 h-6"/>
+          </div>
+          <div className="flex-grow min-w-0">
+            <p className="font-bold text-base">Install Aplikasi Manajemen Guru</p>
+            <p className="text-xs sm:text-sm text-white/90 mt-0.5">Akses cepat, bekerja offline, notifikasi real-time</p>
+          </div>
         </div>
-        <div className="flex-grow">
-          <p className="font-bold">Pasang Aplikasi Guru Cerdas</p>
-          <p className="text-sm text-gray-300">Dapatkan akses cepat dan fitur offline.</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-            <Button size="sm" variant="ghost" onClick={handleDismiss}>Nanti</Button>
-            <Button size="sm" onClick={handleInstallClick}>Pasang</Button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="ghost" onClick={handleDismiss} className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 text-white border-white/20">Nanti</Button>
+            <Button size="sm" onClick={handleInstallClick} className="flex-1 sm:flex-none bg-white text-sky-600 dark:text-purple-600 hover:bg-white/90">Install</Button>
         </div>
       </div>
     </div>

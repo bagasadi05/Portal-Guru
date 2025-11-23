@@ -140,13 +140,33 @@
 
     <!-- PWA Manifest & Mobile Meta -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0284c7" />
+    <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
     <link rel="apple-touch-icon" href="/logo.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Guru PWA" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Manajemen Guru" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-TileColor" content="#0ea5e9" />
+    <meta name="msapplication-tap-highlight" content="no" />
     
     <style>
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+
+      html {
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        overscroll-behavior-y: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
       .animation-delay-100 { animation-delay: 100ms; }
       .animation-delay-200 { animation-delay: 200ms; }
       .animation-delay-300 { animation-delay: 300ms; }
