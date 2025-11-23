@@ -23,7 +23,7 @@ const mobileNavItems = [
   { href: '/dashboard', label: 'Home', icon: HomeIcon },
   { href: '/absensi', label: 'Absensi', icon: ClipboardIcon },
   { href: '/siswa', label: 'Siswa', icon: UsersIcon },
-  { href: '/jadwal', label: 'Jadwal', icon: CalendarIcon },
+  { href: '/input-massal', label: 'Input', icon: ClipboardPenIcon },
   { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
 ];
 
