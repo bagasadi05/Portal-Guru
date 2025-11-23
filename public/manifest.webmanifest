@@ -4,9 +4,11 @@
   "description": "Aplikasi manajemen siswa, absensi, dan nilai untuk guru",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
   "background_color": "#ffffff",
   "theme_color": "#0ea5e9",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "scope": "/",
   "categories": ["education", "productivity"],
   "lang": "id",
@@ -103,6 +105,5 @@
       "url": "/#/siswa",
       "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
     }
-  ],
-  "prefer_related_applications": false
+  ]
 }

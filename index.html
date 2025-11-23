@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Manajemen Guru</title>
     
     <!-- Google Fonts: Inter -->
@@ -160,11 +160,53 @@
       html {
         touch-action: manipulation;
         -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        -moz-text-size-adjust: 100%;
       }
 
       body {
         overscroll-behavior-y: none;
         -webkit-overflow-scrolling: touch;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      #root {
+        width: 100%;
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      input, textarea, select, button {
+        font-size: 16px !important;
+        touch-action: manipulation;
+      }
+
+      input:focus, textarea:focus, select:focus {
+        font-size: 16px !important;
+      }
+
+      nav[class*="bottom-0"] {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 30 !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: translateY(0) !important;
+        pointer-events: auto !important;
+      }
+
+      @supports (padding: env(safe-area-inset-bottom)) {
+        nav[class*="bottom-0"] {
+          padding-bottom: env(safe-area-inset-bottom);
+        }
       }
 
       .animation-delay-100 { animation-delay: 100ms; }
@@ -711,6 +753,85 @@
       } else {
         document.documentElement.classList.remove('dark');
       }
+
+      // Prevent zoom behavior
+      document.addEventListener('gesturestart', function(e) {
+        e.preventDefault();
+        document.body.style.zoom = 1;
+      });
+
+      document.addEventListener('gesturechange', function(e) {
+        e.preventDefault();
+        document.body.style.zoom = 1;
+      });
+
+      document.addEventListener('gestureend', function(e) {
+        e.preventDefault();
+        document.body.style.zoom = 1;
+      });
+
+      // Prevent double-tap zoom
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', function(event) {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          event.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, false);
+
+      // Prevent pinch zoom
+      document.addEventListener('touchmove', function(event) {
+        if (event.touches.length > 1) {
+          event.preventDefault();
+        }
+      }, { passive: false });
+
+      // Force navbar visibility on load
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          const navbar = document.querySelector('nav[class*="bottom-0"]');
+          if (navbar) {
+            navbar.style.cssText = 'position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 30 !important; display: flex !important; visibility: visible !important; opacity: 1 !important; transform: translateY(0) !important;';
+          }
+        }, 100);
+      });
+
+      // Re-check navbar on route change
+      if (window.history && window.history.pushState) {
+        const originalPushState = window.history.pushState;
+        window.history.pushState = function() {
+          originalPushState.apply(window.history, arguments);
+          setTimeout(function() {
+            const navbar = document.querySelector('nav[class*="bottom-0"]');
+            if (navbar) {
+              navbar.style.cssText = 'position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 30 !important; display: flex !important; visibility: visible !important; opacity: 1 !important; transform: translateY(0) !important;';
+            }
+          }, 50);
+        };
+      }
+
+      // Observe DOM changes to ensure navbar stays visible
+      const observeNavbar = function() {
+        const observer = new MutationObserver(function() {
+          const navbar = document.querySelector('nav[class*="bottom-0"]');
+          if (navbar) {
+            const computed = window.getComputedStyle(navbar);
+            if (computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') {
+              navbar.style.cssText = 'position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 30 !important; display: flex !important; visibility: visible !important; opacity: 1 !important; transform: translateY(0) !important;';
+            }
+          }
+        });
+
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class']
+        });
+      };
+
+      window.addEventListener('load', observeNavbar);
     </script>
   <script type="importmap">
 {

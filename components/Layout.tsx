@@ -131,6 +131,29 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         return () => { delete (window as any).toggleAiChat; };
     }, []);
 
+    useEffect(() => {
+        const ensureNavbarVisible = () => {
+            const navbar = document.querySelector('nav[class*="bottom-0"]');
+            if (navbar && window.innerWidth < 1024) {
+                const style = 'position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 30 !important; display: flex !important; visibility: visible !important; opacity: 1 !important; transform: translateY(0) !important;';
+                (navbar as HTMLElement).style.cssText = style;
+            }
+        };
+
+        ensureNavbarVisible();
+
+        const timer = setInterval(ensureNavbarVisible, 1000);
+
+        window.addEventListener('resize', ensureNavbarVisible);
+        window.addEventListener('orientationchange', ensureNavbarVisible);
+
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('resize', ensureNavbarVisible);
+            window.removeEventListener('orientationchange', ensureNavbarVisible);
+        };
+    }, []);
+
     const handleGreetingEnd = () => {
         setShowGreeting(false);
         if (typeof sessionStorage !== 'undefined') {
