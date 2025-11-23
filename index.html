@@ -209,6 +209,30 @@
         }
       }
 
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      header > * {
+        display: flex;
+        align-items: center;
+      }
+
+      nav a, nav button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      button[aria-label], a[aria-label] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
       .animation-delay-100 { animation-delay: 100ms; }
       .animation-delay-200 { animation-delay: 200ms; }
       .animation-delay-300 { animation-delay: 300ms; }

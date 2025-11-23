@@ -8,11 +8,17 @@ const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
+    >
       {theme === 'light' ? (
-        <SunIcon className="h-5 w-5" />
+        <SunIcon className="w-5 h-5 text-amber-500" />
       ) : (
-        <MoonIcon className="h-5 w-5" />
+        <MoonIcon className="w-5 h-5 text-indigo-400" />
       )}
     </Button>
   );

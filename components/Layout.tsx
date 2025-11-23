@@ -179,49 +179,68 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
             <div className="flex flex-col flex-1 w-full overflow-hidden">
                 {/* Mobile header with menu button */}
-                <header className="h-14 lg:h-16 bg-white/80 dark:bg-gray-950/70 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between px-3 sm:px-6 sticky top-0 z-20">
+                <header className="h-16 bg-white/80 dark:bg-gray-950/70 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between px-4 sticky top-0 z-20">
                     {/* Mobile menu button */}
                     <button
                         onClick={() => setIsMobileSidebarOpen(true)}
-                        className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
+                        aria-label="Open menu"
                     >
-                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
 
                     {/* Search button - hidden on small mobile, shown on desktop */}
-                    <Button variant="outline" onClick={() => setIsSearchOpen(true)} className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                        <SearchIcon className="w-4 h-4" />
-                        <span className="hidden md:inline">Cari Siswa...</span>
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsSearchOpen(true)}
+                        className="hidden sm:flex items-center justify-center gap-2 h-10 px-4 text-gray-600 dark:text-gray-300"
+                    >
+                        <SearchIcon className="w-5 h-5" />
+                        <span className="hidden md:inline text-sm font-medium">Cari Siswa...</span>
                     </Button>
 
                     {/* Mobile search icon */}
                     <button
                         onClick={() => setIsSearchOpen(true)}
-                        className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="sm:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
+                        aria-label="Search"
                     >
-                        <SearchIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                        <SearchIcon className="w-5 h-5 text-gray-700 dark:text-gray-200" />
                     </button>
 
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        <ThemeToggle />
+                    <div className="flex items-center gap-2">
+                        {/* Theme Toggle */}
+                        <div className="flex items-center justify-center">
+                            <ThemeToggle />
+                        </div>
 
                         {/* Sync Status - simplified on mobile */}
-                        <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <div className={`w-2.5 h-2.5 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : (pendingCount > 0 ? 'bg-yellow-500' : 'bg-green-500')}`}></div>
-                            <span className="hidden md:inline">{pendingCount > 0 ? pendingCount : ''}</span>
+                        <div className="hidden sm:flex items-center justify-center gap-2 px-2 h-10">
+                            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : (pendingCount > 0 ? 'bg-yellow-500' : 'bg-green-500')}`}></div>
+                            <span className="hidden md:inline text-sm font-medium text-gray-600 dark:text-gray-300">{pendingCount > 0 ? pendingCount : ''}</span>
                         </div>
 
                         {/* AI Chat Button */}
-                        <Button variant="ghost" size="icon" onClick={() => setIsAiChatOpen(prev => !prev)} className="p-2">
-                            <BrainCircuitIcon className="h-5 w-5 text-purple-500" />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsAiChatOpen(prev => !prev)}
+                            className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors active:scale-95"
+                            aria-label="Open AI Chat"
+                        >
+                            <BrainCircuitIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                         </Button>
 
                         {/* Profile - simplified on mobile */}
-                        <Link to="/pengaturan">
+                        <Link
+                            to="/pengaturan"
+                            className="flex items-center justify-center w-10 h-10 rounded-full transition-transform hover:scale-105 active:scale-95"
+                            aria-label="Settings"
+                        >
                             <img
-                                className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover ring-2 ring-offset-1 ring-sky-500 dark:ring-purple-500"
+                                className="w-9 h-9 rounded-full object-cover ring-2 ring-offset-2 ring-sky-500 dark:ring-purple-500 shadow-sm"
                                 src={user?.avatarUrl}
                                 alt="User avatar"
                             />
@@ -234,25 +253,29 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </main>
 
                 {/* Bottom Navigation for Mobile */}
-                <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-800/50">
-                    <div className="flex items-center justify-around h-16 px-2">
+                <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-200/50 dark:border-gray-800/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <div className="flex items-stretch justify-around h-16 px-1 safe-area-inset-bottom">
                         {mobileNavItems.map((item) => (
                             <NavLink
                                 key={item.href}
                                 to={item.href}
                                 end={item.href === '/dashboard'}
                                 className={({ isActive }) =>
-                                    `flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+                                    `flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] rounded-xl transition-all duration-200 active:scale-95 ${
                                         isActive
-                                            ? 'text-sky-600 dark:text-purple-400'
-                                            : 'text-gray-500 dark:text-gray-400'
+                                            ? 'text-sky-600 dark:text-purple-400 bg-sky-50 dark:bg-purple-900/20'
+                                            : 'text-gray-600 dark:text-gray-400'
                                     }`
                                 }
                             >
                                 {({ isActive }) => (
                                     <>
-                                        <item.icon className={`w-6 h-6 transition-transform ${isActive ? 'scale-110' : ''}`} />
-                                        <span className="text-xs font-medium">{item.label}</span>
+                                        <item.icon className={`w-6 h-6 transition-transform ${
+                                            isActive ? 'scale-110' : 'scale-100'
+                                        }`} />
+                                        <span className={`text-[11px] leading-tight font-medium ${
+                                            isActive ? 'font-semibold' : ''
+                                        }`}>{item.label}</span>
                                     </>
                                 )}
                             </NavLink>
