@@ -366,13 +366,6 @@ const DashboardPage: React.FC = () => {
         ? Math.round((dailyAttendanceSummary?.present || 0) / students.length * 100)
         : 0;
 
-    const stats = [
-      { label: 'Total Siswa', value: students.length, icon: UsersIcon, link: '/siswa', color: 'from-sky-500 to-blue-500', darkColor: 'dark:from-sky-500 dark:to-blue-500', description: `${classes.length} kelas` },
-      { label: 'Kehadiran Hari Ini', value: `${attendancePercentage}%`, subValue: `${dailyAttendanceSummary?.present || 0}/${students.length}`, icon: CheckSquareIcon, link: '/absensi', color: 'from-emerald-500 to-green-500', darkColor: 'dark:from-emerald-500 dark:to-green-500', description: 'siswa hadir' },
-      { label: 'Tugas Aktif', value: tasks.length, icon: BookOpenIcon, link: '/tugas', color: 'from-amber-500 to-yellow-500', darkColor: 'dark:from-amber-500 dark:to-yellow-500', description: tasks.filter(t => t.status === 'in_progress').length + ' sedang dikerjakan' },
-      { label: 'Jadwal Hari Ini', value: schedule.length, icon: CalendarIcon, link: '/jadwal', color: 'from-violet-500 to-purple-500', darkColor: 'dark:from-violet-500 dark:to-purple-500', description: nextClassIndex >= 0 ? `Berikutnya: ${schedule[nextClassIndex]?.subject}` : 'Semua selesai' }
-    ];
-    
     let nextClassIndex = -1;
     for (let i = 0; i < todaySchedule.length; i++) {
         const item = todaySchedule[i];
@@ -384,6 +377,13 @@ const DashboardPage: React.FC = () => {
             break;
         }
     }
+
+    const stats = [
+      { label: 'Total Siswa', value: students.length, icon: UsersIcon, link: '/siswa', color: 'from-sky-500 to-blue-500', darkColor: 'dark:from-sky-500 dark:to-blue-500', description: `${classes.length} kelas` },
+      { label: 'Kehadiran Hari Ini', value: `${attendancePercentage}%`, subValue: `${dailyAttendanceSummary?.present || 0}/${students.length}`, icon: CheckSquareIcon, link: '/absensi', color: 'from-emerald-500 to-green-500', darkColor: 'dark:from-emerald-500 dark:to-green-500', description: 'siswa hadir' },
+      { label: 'Tugas Aktif', value: tasks.length, icon: BookOpenIcon, link: '/tugas', color: 'from-amber-500 to-yellow-500', darkColor: 'dark:from-amber-500 dark:to-yellow-500', description: tasks.filter(t => t.status === 'in_progress').length + ' sedang dikerjakan' },
+      { label: 'Jadwal Hari Ini', value: schedule.length, icon: CalendarIcon, link: '/jadwal', color: 'from-violet-500 to-purple-500', darkColor: 'dark:from-violet-500 dark:to-purple-500', description: nextClassIndex >= 0 ? `Berikutnya: ${schedule[nextClassIndex]?.subject}` : 'Semua selesai' }
+    ];
 
     return (
         <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent max-w-7xl mx-auto">
