@@ -123,95 +123,196 @@ const ReportPage: React.FC = () => {
     if (!data) return null;
 
     return (
-        <div className="bg-gray-100 dark:bg-gray-900 min-h-screen font-serif">
-            <div className="fixed top-0 left-0 right-0 p-3 sm:p-4 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md z-10 no-print shadow-md">
+        <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 font-serif overflow-hidden">
+            {/* Fixed Header */}
+            <div className="flex-shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md no-print shadow-lg border-b border-gray-200 dark:border-gray-700">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-3">
-                    <Link to={`/siswa/${studentId}`}><Button variant="ghost" size="sm"><ArrowLeftIcon className="w-4 h-4 mr-1 sm:mr-2"/> Kembali</Button></Link>
-                    <h2 className="text-base sm:text-lg font-bold">Pratinjau Cetak Rapor</h2>
-                    <Button onClick={handlePrint} size="sm"><PrinterIcon className="w-4 h-4 mr-1 sm:mr-2"/> Cetak PDF</Button>
+                    <Link to={`/siswa/${studentId}`}>
+                        <Button variant="ghost" size="sm">
+                            <ArrowLeftIcon className="w-4 h-4 mr-1 sm:mr-2"/> Kembali
+                        </Button>
+                    </Link>
+                    <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Pratinjau Cetak Rapor</h2>
+                    <Button onClick={handlePrint} size="sm" className="bg-purple-600 hover:bg-purple-700">
+                        <PrinterIcon className="w-4 h-4 mr-1 sm:mr-2"/> Cetak PDF
+                    </Button>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm">
-                    <span className="font-medium">Filter:</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">Filter:</span>
                     <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => { setShowAllSubjects(true); setSelectedSubjects(new Set(allSubjects)); }} className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full transition-colors ${showAllSubjects ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Semua</button>
-                        <button onClick={() => setShowAllSubjects(false)} className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full transition-colors ${!showAllSubjects ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Pilih ({selectedSubjects.size})</button>
+                        <button
+                            onClick={() => { setShowAllSubjects(true); setSelectedSubjects(new Set(allSubjects)); }}
+                            className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full transition-all duration-200 ${showAllSubjects ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                        >
+                            Semua
+                        </button>
+                        <button
+                            onClick={() => setShowAllSubjects(false)}
+                            className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full transition-all duration-200 ${!showAllSubjects ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                        >
+                            Pilih ({selectedSubjects.size})
+                        </button>
                     </div>
                     {!showAllSubjects && (
                         <div className="flex gap-1 flex-wrap">
                             {allSubjects.map(subject => (
-                                <button key={subject} onClick={() => toggleSubject(subject)} className={`px-2 py-0.5 text-xs rounded-full transition-colors ${selectedSubjects.has(subject) ? 'bg-green-500 text-white' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500'}`}>{subject}</button>
+                                <button
+                                    key={subject}
+                                    onClick={() => toggleSubject(subject)}
+                                    className={`px-2 py-0.5 text-xs rounded-full transition-all duration-200 ${selectedSubjects.has(subject) ? 'bg-green-500 text-white shadow-md' : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500'}`}
+                                >
+                                    {subject}
+                                </button>
                             ))}
                         </div>
                     )}
                 </div>
             </div>
 
-            <main className="pt-32 sm:pt-28 pb-12 px-2 sm:px-4 md:px-8 lg:px-12 flex justify-center">
-                <div id="printable-area" className="w-full max-w-[210mm] min-h-[297mm] p-4 sm:p-8 md:p-[20mm] bg-white text-black shadow-2xl">
-                    {/* --- HEADER --- */}
-                    <header className="text-center border-b-2 border-black pb-2 mb-4 sm:mb-6">
-                         <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
-                            <GraduationCapIcon className="w-8 h-8 sm:w-10 sm:h-10"/>
-                            <div>
-                                <h1 className="text-base sm:text-xl font-bold">LAPORAN HASIL BELAJAR SISWA</h1>
-                                <h2 className="text-xs sm:text-sm">MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN</h2>
+            {/* Scrollable Content Area */}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-2 sm:px-4 md:px-8 lg:px-12 py-8">
+                <div className="flex justify-center">
+                    <div id="printable-area" className="w-full max-w-[210mm] p-4 sm:p-8 md:p-[20mm] bg-white dark:bg-gray-800 text-black dark:text-white shadow-2xl rounded-lg mb-8">
+                        {/* --- HEADER --- */}
+                        <header className="text-center border-b-2 border-black dark:border-gray-600 pb-4 mb-6">
+                            <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
+                                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                                    <GraduationCapIcon className="w-7 h-7 sm:w-8 sm:h-8 text-white"/>
+                                </div>
+                                <div>
+                                    <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">LAPORAN HASIL BELAJAR SISWA</h1>
+                                    <h2 className="text-sm sm:text-base text-gray-700 dark:text-gray-300 mt-1">MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN</h2>
+                                </div>
                             </div>
-                         </div>
-                    </header>
+                        </header>
 
-                    {/* --- STUDENT INFO --- */}
-                    <table className="text-xs sm:text-sm mb-4 sm:mb-6 w-full"><tbody>
-                        <tr><td className="w-1/3 sm:w-1/4 font-bold py-1">Nama Siswa</td><td className="py-1">: {data.student.name}</td></tr>
-                        <tr><td className="font-bold py-1">Kelas</td><td className="py-1">: {data.student.classes?.name || 'N/A'}</td></tr>
-                        <tr><td className="font-bold py-1">Tahun Ajaran</td><td className="py-1">: {new Date().getFullYear()} / {new Date().getFullYear() + 1}</td></tr>
-                    </tbody></table>
-
-                    {/* --- ACADEMICS --- */}
-                    <section className="mb-4 sm:mb-6">
-                        <h3 className="text-sm sm:text-base font-bold border-b border-black mb-2">A. Capaian Akademik</h3>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-[10px] sm:text-xs border-collapse">
-                                <thead><tr className="bg-gray-200 text-left"><th className="border p-1 sm:p-2">Mata Pelajaran</th><th className="border p-1 sm:p-2">Penilaian</th><th className="border p-1 sm:p-2">Nilai</th><th className="border p-1 sm:p-2">Deskripsi</th></tr></thead>
+                        {/* --- STUDENT INFO --- */}
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-750 rounded-lg p-4 mb-6">
+                            <table className="text-sm sm:text-base w-full">
                                 <tbody>
-                                    {Object.entries(academicRecordsBySubject).map(([subject, records]) => (
-                                        <React.Fragment key={subject}>
-                                            {(records as AcademicRecordRow[]).map((record, index) => (
-                                                <tr key={record.id}><td className="border p-1 sm:p-2">{index === 0 ? subject : ''}</td><td className="border p-1 sm:p-2">{record.assessment_name || '-'}</td><td className="border p-1 sm:p-2 text-center">{record.score}</td><td className="border p-1 sm:p-2 text-[9px] sm:text-xs">{record.notes || 'Sesuai nilai'}</td></tr>
-                                            ))}
-                                        </React.Fragment>
-                                    ))}
+                                    <tr className="border-b border-gray-200 dark:border-gray-600">
+                                        <td className="w-1/3 sm:w-1/4 font-bold py-2 text-gray-700 dark:text-gray-300">Nama Siswa</td>
+                                        <td className="py-2 text-gray-900 dark:text-white">: {data.student.name}</td>
+                                    </tr>
+                                    <tr className="border-b border-gray-200 dark:border-gray-600">
+                                        <td className="font-bold py-2 text-gray-700 dark:text-gray-300">Kelas</td>
+                                        <td className="py-2 text-gray-900 dark:text-white">: {data.student.classes?.name || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="font-bold py-2 text-gray-700 dark:text-gray-300">Tahun Ajaran</td>
+                                        <td className="py-2 text-gray-900 dark:text-white">: {new Date().getFullYear()} / {new Date().getFullYear() + 1}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
-                    </section>
+
+                        {/* --- ACADEMICS --- */}
+                        <section className="mb-6">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-600 rounded"></div>
+                                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">A. Capaian Akademik</h3>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
+                                <table className="w-full text-xs sm:text-sm border-collapse">
+                                    <thead>
+                                        <tr className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-gray-700 dark:to-gray-750">
+                                            <th className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-left font-semibold text-gray-700 dark:text-gray-200">Mata Pelajaran</th>
+                                            <th className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-left font-semibold text-gray-700 dark:text-gray-200">Penilaian</th>
+                                            <th className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-center font-semibold text-gray-700 dark:text-gray-200">Nilai</th>
+                                            <th className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-left font-semibold text-gray-700 dark:text-gray-200">Deskripsi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(academicRecordsBySubject).map(([subject, records]) => (
+                                            <React.Fragment key={subject}>
+                                                {(records as AcademicRecordRow[]).map((record, index) => {
+                                                    const scoreColor = record.score >= 75 ? 'text-green-600 dark:text-green-400' : record.score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+                                                    return (
+                                                        <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                            <td className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 font-medium text-gray-900 dark:text-white">{index === 0 ? subject : ''}</td>
+                                                            <td className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-gray-700 dark:text-gray-300">{record.assessment_name || '-'}</td>
+                                                            <td className={`border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-center font-bold text-lg ${scoreColor}`}>{record.score}</td>
+                                                            <td className="border border-gray-300 dark:border-gray-600 p-2 sm:p-3 text-gray-600 dark:text-gray-400 text-xs sm:text-sm">{record.notes || 'Sesuai nilai'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     
-                    {/* --- BEHAVIOR & ATTENDANCE --- */}
-                    <section className="mb-4 sm:mb-6">
-                        <h3 className="text-sm sm:text-base font-bold border-b border-black mb-2">B. Absensi & Perilaku</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-[10px] sm:text-xs">
-                            <div><h4 className="font-semibold mb-1">Ketidakhadiran</h4><ul className="space-y-0.5"><li>Sakit: {attendanceSummary.Sakit} hari</li><li>Izin: {attendanceSummary.Izin} hari</li><li>Tanpa Keterangan: {attendanceSummary.Alpha} hari</li></ul></div>
-                            <div><h4 className="font-semibold mb-1">Catatan Perilaku</h4><ul className="space-y-0.5">{(data.violations || []).length > 0 ? (data.violations || []).map(v => <li key={v.id}>- {v.description}</li>) : <li>Siswa menunjukkan sikap yang baik.</li>}</ul></div>
-                        </div>
-                    </section>
+                        {/* --- BEHAVIOR & ATTENDANCE --- */}
+                        <section className="mb-6">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-blue-600 rounded"></div>
+                                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">B. Absensi & Perilaku</h3>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="bg-blue-50 dark:bg-gray-700 rounded-lg p-4 border border-blue-200 dark:border-gray-600">
+                                    <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-300 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                        Ketidakhadiran
+                                    </h4>
+                                    <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <li className="flex justify-between">
+                                            <span>Sakit:</span>
+                                            <span className="font-semibold">{attendanceSummary.Sakit} hari</span>
+                                        </li>
+                                        <li className="flex justify-between">
+                                            <span>Izin:</span>
+                                            <span className="font-semibold">{attendanceSummary.Izin} hari</span>
+                                        </li>
+                                        <li className="flex justify-between">
+                                            <span>Tanpa Keterangan:</span>
+                                            <span className="font-semibold">{attendanceSummary.Alpha} hari</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div className="bg-purple-50 dark:bg-gray-700 rounded-lg p-4 border border-purple-200 dark:border-gray-600">
+                                    <h4 className="font-semibold mb-3 text-purple-900 dark:text-purple-300 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                        Catatan Perilaku
+                                    </h4>
+                                    <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                                        {(data.violations || []).length > 0
+                                            ? (data.violations || []).map(v => <li key={v.id} className="flex items-start gap-2"><span className="text-red-500">•</span><span>{v.description}</span></li>)
+                                            : <li className="text-green-600 dark:text-green-400 flex items-center gap-2"><span>✓</span><span>Siswa menunjukkan sikap yang baik.</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                        </section>
                     
-                    {/* --- TEACHER NOTE --- */}
-                    <section className="mb-6 sm:mb-8">
-                        <h3 className="text-sm sm:text-base font-bold border-b border-black mb-2">C. Catatan Wali Kelas</h3>
-                        <p className="text-xs sm:text-sm italic p-2 border border-gray-200 rounded bg-gray-50">{teacherNote}</p>
-                    </section>
+                        {/* --- TEACHER NOTE --- */}
+                        <section className="mb-8">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-gradient-to-b from-amber-500 to-orange-600 rounded"></div>
+                                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">C. Catatan Wali Kelas</h3>
+                            </div>
+                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-700 dark:to-gray-750 rounded-lg p-5 border-l-4 border-amber-500">
+                                <p className="text-sm sm:text-base italic text-gray-700 dark:text-gray-300 leading-relaxed">{teacherNote}</p>
+                            </div>
+                        </section>
                     
-                    {/* --- SIGNATURES --- */}
-                    <div className="flex justify-between items-start text-xs sm:text-sm mt-8 sm:mt-12">
-                        <div className="text-center">
-                            <p className="mb-1">Orang Tua/Wali</p>
-                            <div className="h-12 sm:h-16"></div>
-                            <p>(___________________)</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="mb-1">Madiun, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                            <p className="mb-1">Wali Kelas</p>
-                            <div className="h-12 sm:h-16"></div>
-                            <p className="font-bold underline">{user?.name}</p>
+                        {/* --- SIGNATURES --- */}
+                        <div className="flex justify-between items-start text-sm sm:text-base mt-12 pt-8 border-t border-gray-300 dark:border-gray-600">
+                            <div className="text-center">
+                                <p className="mb-2 text-gray-700 dark:text-gray-300">Orang Tua/Wali</p>
+                                <div className="h-16 sm:h-20"></div>
+                                <div className="border-t-2 border-gray-400 dark:border-gray-500 pt-1 px-8">
+                                    <p className="text-gray-600 dark:text-gray-400">(___________________)</p>
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <p className="mb-2 text-gray-700 dark:text-gray-300">Madiun, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                <p className="mb-2 text-gray-700 dark:text-gray-300">Wali Kelas</p>
+                                <div className="h-16 sm:h-20"></div>
+                                <div className="border-t-2 border-gray-400 dark:border-gray-500 pt-1 px-8">
+                                    <p className="font-bold text-gray-900 dark:text-white">{user?.name}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
