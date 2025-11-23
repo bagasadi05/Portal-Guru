@@ -93,11 +93,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onLinkClick }) => {
     );
 };
 
-
-const { pendingCount, isSyncing } = useSyncQueue();
-
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { pendingCount, isSyncing } = useSyncQueue();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isAiChatOpen, setIsAiChatOpen] = useState(false);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
