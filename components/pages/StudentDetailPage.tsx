@@ -18,6 +18,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOfflineStatus } from '../../hooks/useOfflineStatus';
 import { optimizeImage } from '../utils/image';
 import { violationList, ViolationItem } from '../../services/violations.data';
+import { ChildDevelopmentAnalysisTab } from './ChildDevelopmentAnalysisTab';
+import { ChildDevelopmentData } from '../../services/childDevelopmentAnalysis';
 
 type StudentRow = Database['public']['Tables']['students']['Row'];
 type ClassRow = Database['public']['Tables']['classes']['Row'];
@@ -750,6 +752,10 @@ const StudentDetailPage = () => {
                                   <TabsTrigger value="activity">Keaktifan</TabsTrigger>
                                   <TabsTrigger value="violations">Pelanggaran</TabsTrigger>
                                   <TabsTrigger value="reports">Catatan Guru</TabsTrigger>
+                                  <TabsTrigger value="development">
+                                    <BrainCircuitIcon className="w-4 h-4 mr-1.5 inline"/>
+                                    Analisis Perkembangan
+                                  </TabsTrigger>
                                   <TabsTrigger value="communication">
                                     <div className="relative">Komunikasi
                                     {unreadMessagesCount > 0 && <span className="absolute -top-1 -right-3 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">{unreadMessagesCount}</span>}
@@ -797,6 +803,37 @@ const StudentDetailPage = () => {
                             <Button onClick={() => setModalState({ type: 'report', data: null })} disabled={!isOnline}><PlusIcon className="w-4 h-4 mr-2"/>Tambah Catatan</Button>
                            </div>
                            {reports.length > 0 ? (<div className="space-y-3">{[...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (<div key={r.id} className="group relative p-4 rounded-lg bg-black/20"><div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalState({ type: 'report', data: r})} disabled={!isOnline}><PencilIcon className="h-4 h-4"/></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDelete('reports', r.id)} disabled={!isOnline}><TrashIcon className="h-4 h-4"/></Button></div><h4 className="font-bold text-white">{r.title}</h4><p className="text-xs text-gray-400 mb-2">{new Date(r.date).toLocaleDateString('id-ID')}</p><p className="text-sm text-gray-300">{r.notes}</p></div>))}</div>) : (<div className="text-center py-16 text-gray-400"><BookOpenIcon className="w-16 h-16 mx-auto mb-4 text-gray-600"/><h4 className="font-semibold">Tidak Ada Catatan</h4><p>Belum ada catatan guru untuk siswa ini.</p></div>)}
+                      </TabsContent>
+                      <TabsContent value="development" className="p-6">
+                          <ChildDevelopmentAnalysisTab
+                            studentData={{
+                              student: {
+                                name: student.name,
+                                age: student.age,
+                                class: student.classes?.name
+                              },
+                              academicRecords: academicRecords.map(r => ({
+                                subject: r.subject,
+                                score: r.score,
+                                assessment_name: r.assessment_name,
+                                notes: r.notes
+                              })),
+                              attendanceRecords: studentDetails.attendanceRecords.map(a => ({
+                                status: a.status,
+                                date: a.date
+                              })),
+                              violations: violations.map(v => ({
+                                description: v.description,
+                                points: v.points,
+                                date: v.date
+                              })),
+                              quizPoints: quizPoints.map(q => ({
+                                activity: q.quiz_name,
+                                points: q.points,
+                                date: q.quiz_date
+                              }))
+                            } as ChildDevelopmentData}
+                          />
                       </TabsContent>
                       <TabsContent value="communication">
                           <div className="flex flex-col h-[60vh]">
