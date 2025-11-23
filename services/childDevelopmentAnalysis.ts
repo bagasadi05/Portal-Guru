@@ -78,180 +78,245 @@ export interface ComprehensiveChildAnalysis {
   recommendations: ParentRecommendations;
 }
 
+function generateFallbackAnalysis(
+  data: ChildDevelopmentData,
+  averageScore: number,
+  attendanceRate: number,
+  totalViolations: number
+): ComprehensiveChildAnalysis {
+  const performanceLevel = averageScore >= 85 ? 'sangat baik' : averageScore >= 75 ? 'baik' : averageScore >= 65 ? 'cukup' : 'perlu peningkatan';
+  const attendanceLevel = attendanceRate >= 95 ? 'sangat baik' : attendanceRate >= 85 ? 'baik' : attendanceRate >= 75 ? 'cukup' : 'perlu peningkatan';
+
+  return {
+    summary: {
+      name: data.student.name,
+      age: data.student.age || 7,
+      class: data.student.class || 'SD',
+      overallAssessment: `${data.student.name} menunjukkan perkembangan yang ${performanceLevel} dengan rata-rata nilai ${averageScore} dan tingkat kehadiran ${attendanceRate}%. ${totalViolations === 0 ? 'Tidak ada catatan pelanggaran yang menunjukkan kedisiplinan yang baik.' : 'Perlu perhatian pada aspek kedisiplinan.'} Terus dukung semangat belajar dan perkembangannya.`
+    },
+    cognitive: {
+      strengths: [
+        `Memiliki nilai rata-rata ${averageScore} yang menunjukkan pemahaman yang ${performanceLevel}`,
+        averageScore >= 75 ? 'Menunjukkan konsistensi dalam mengikuti pembelajaran dengan baik' : 'Menunjukkan usaha dalam mengikuti pembelajaran',
+        'Aktif dalam kegiatan kelas dan partisipasi pembelajaran',
+        data.academicRecords.length > 5 ? 'Memiliki catatan penilaian yang lengkap dan konsisten' : 'Terus mengikuti penilaian dengan baik'
+      ].slice(0, 4),
+      areasForDevelopment: [
+        averageScore < 75 ? 'Perlu peningkatan pemahaman konsep di beberapa mata pelajaran' : 'Pertahankan dan tingkatkan prestasi akademik',
+        'Latihan soal secara rutin untuk memperkuat pemahaman materi',
+        averageScore < 70 ? 'Konsultasi dengan guru untuk strategi belajar yang lebih efektif' : 'Eksplorasi materi tambahan untuk memperdalam pemahaman'
+      ].slice(0, 3),
+      learningStyle: 'Campuran',
+      criticalThinking: averageScore >= 75 ? 'Menunjukkan kemampuan berpikir kritis yang baik dengan pemahaman konsep yang solid' : 'Sedang mengembangkan kemampuan berpikir kritis, perlu latihan lebih banyak',
+      academicComparison: averageScore >= 75 ? 'Berada pada atau di atas standar perkembangan anak seusianya' : 'Sedang berupaya mencapai standar perkembangan sesuai usia'
+    },
+    affective: {
+      positiveCharacters: [
+        `Memiliki kedisiplinan yang ${attendanceLevel} dengan tingkat kehadiran ${attendanceRate}%`,
+        'Menunjukkan tanggung jawab dalam mengikuti kegiatan sekolah',
+        totalViolations === 0 ? 'Tidak ada catatan pelanggaran, menunjukkan perilaku yang baik' : 'Terus berusaha memperbaiki perilaku dan sikap',
+        attendanceRate >= 90 ? 'Sangat konsisten dalam kehadiran menunjukkan komitmen belajar' : 'Menunjukkan usaha untuk hadir secara teratur'
+      ].slice(0, 4),
+      socialSkills: 'Menunjukkan kemampuan bersosialisasi yang baik dengan teman sebaya dan aktif dalam kegiatan kelompok',
+      characterDevelopmentAreas: [
+        totalViolations > 0 ? 'Perlu bimbingan lebih dalam memahami dan mematuhi tata tertib sekolah' : 'Terus kembangkan sikap empati dan kerja sama tim',
+        'Latih kemampuan komunikasi dan leadership dalam kegiatan kelompok',
+        attendanceRate < 85 ? 'Tingkatkan kedisiplinan dan konsistensi kehadiran' : 'Kembangkan inisiatif dan kemandirian dalam belajar'
+      ].slice(0, 3),
+      emotionalIntelligence: 'Mampu mengatur emosi dengan baik sesuai usia dan menunjukkan empati terhadap teman',
+      discipline: attendanceRate >= 95 ? 'Sangat baik' : attendanceRate >= 85 ? 'Baik' : attendanceRate >= 75 ? 'Cukup' : 'Perlu peningkatan'
+    },
+    psychomotor: {
+      motorSkills: 'Perkembangan motorik sesuai dengan usia dan tahap perkembangan anak',
+      outstandingSkills: [
+        'Aktif dalam kegiatan praktik dan pembelajaran hands-on',
+        'Menunjukkan koordinasi mata-tangan yang baik',
+        'Mampu mengikuti instruksi aktivitas fisik dengan baik'
+      ],
+      areasNeedingStimulation: [
+        'Tingkatkan aktivitas fisik dan olahraga untuk pengembangan motorik kasar',
+        'Latihan keterampilan motorik halus melalui aktivitas seni dan kerajinan'
+      ],
+      coordination: 'Koordinasi motorik berkembang dengan baik sesuai tahap perkembangan'
+    },
+    recommendations: {
+      homeSupport: [
+        'Dampingi anak belajar 30-45 menit setiap hari setelah pulang sekolah dengan suasana yang kondusif',
+        'Baca buku cerita atau artikel bersama 15-20 menit sebelum tidur untuk meningkatkan literasi',
+        'Diskusikan kegiatan sekolah hari ini dan apresiasi usaha serta pencapaiannya',
+        'Buat jadwal belajar yang konsisten dan pastikan waktu istirahat yang cukup'
+      ],
+      neededStimulation: {
+        cognitive: [
+          'Berikan puzzle, permainan strategi, dan permainan edukatif sesuai usia',
+          'Ajak anak berdiskusi tentang hal-hal di sekitar dan dorong rasa ingin tahunya',
+          'Latihan soal matematika dan membaca 15-30 menit setiap hari',
+          averageScore < 75 ? 'Fokus pada mata pelajaran yang masih perlu peningkatan dengan pendekatan yang menyenangkan' : 'Berikan tantangan baru untuk meningkatkan kemampuan berpikir kritis'
+        ],
+        affective: [
+          'Ajarkan anak berbagi dan berempati melalui kegiatan bersama saudara/teman',
+          'Libatkan dalam kegiatan sosial keluarga dan komunitas',
+          'Berikan tanggung jawab kecil di rumah seperti merapikan mainan atau membantu pekerjaan ringan',
+          'Diskusikan nilai-nilai moral melalui cerita dan pengalaman sehari-hari'
+        ],
+        psychomotor: [
+          'Olahraga atau aktivitas fisik minimal 3-4 kali seminggu (bersepeda, berenang, bermain bola)',
+          'Aktivitas seni seperti menggambar, mewarnai, atau membuat kerajinan tangan',
+          'Bermain di luar rumah untuk melatih motorik kasar dan eksplorasi lingkungan',
+          'Latihan keterampilan sehari-hari seperti mengikat tali sepatu, mengancingkan baju'
+        ]
+      },
+      developmentPlan: {
+        threeMonths: [
+          averageScore < 75 ? 'Target peningkatan nilai rata-rata menjadi minimal 75' : 'Target mempertahankan nilai di atas 75 dan meningkatkan 5 poin',
+          attendanceRate < 90 ? 'Konsistensi kehadiran minimal 90%' : 'Pertahankan kehadiran di atas 90%',
+          'Rutinitas belajar teratur 30 menit setiap hari dengan pendampingan',
+          'Mengurangi atau menghilangkan pelanggaran kedisiplinan'
+        ],
+        sixMonths: [
+          'Pencapaian nilai minimal 75 di semua mata pelajaran dengan konsistensi',
+          'Kemampuan belajar mandiri meningkat dengan pengawasan minimal',
+          'Partisipasi aktif dalam minimal 1 kegiatan ekstrakurikuler',
+          'Perkembangan sosial dan karakter yang positif terlihat dari interaksi sehari-hari'
+        ]
+      },
+      warningsSigns: [
+        'Penurunan motivasi belajar yang drastis atau menunjukkan keengganan pergi sekolah',
+        'Perubahan perilaku atau mood yang signifikan dalam waktu singkat',
+        'Kesulitan berkonsentrasi dalam waktu lama atau mudah terdistraksi',
+        'Keluhan fisik berulang tanpa sebab medis jelas (sakit kepala, sakit perut)',
+        'Masalah tidur atau perubahan pola makan yang signifikan',
+        'Penurunan nilai akademik yang konsisten dalam beberapa minggu berturut-turut',
+        'Konflik berulang dengan teman atau guru di sekolah'
+      ]
+    }
+  };
+}
+
 export async function generateComprehensiveChildAnalysis(
   data: ChildDevelopmentData
 ): Promise<ComprehensiveChildAnalysis> {
-  const systemInstruction = `
-Anda adalah seorang psikolog anak dan ahli perkembangan anak yang berpengalaman selama 15 tahun.
-Tugas Anda adalah menganalisis data perkembangan anak secara holistik berdasarkan tiga domain:
-1. Kognitif (Pengetahuan) - kemampuan akademik dan berpikir
-2. Afektif (Sikap) - karakter, emosi, dan sosial
-3. Psikomotor - kemampuan motorik dan keterampilan fisik
-
-Berikan analisis yang mendalam, empati, dan actionable untuk orang tua.
-Gunakan bahasa Indonesia yang mudah dipahami, hindari jargon berlebihan.
-Fokus pada solusi praktis dan konkret.
-Selalu berikan perspektif positif sambil jujur tentang area yang perlu dikembangkan.
-`;
-
-  const averageScore = data.academicRecords.length > 0
-    ? Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)
-    : 0;
-
-  const subjectScores = data.academicRecords.reduce((acc, record) => {
-    if (!acc[record.subject]) {
-      acc[record.subject] = [];
-    }
-    acc[record.subject].push(record.score);
-    return acc;
-  }, {} as Record<string, number[]>);
-
-  const subjectAverages = Object.entries(subjectScores).map(([subject, scores]) => ({
-    subject,
-    average: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-  }));
-
-  const attendanceSummary = {
-    total: data.attendanceRecords.length,
-    hadir: data.attendanceRecords.filter(r => r.status === 'Hadir').length,
-    sakit: data.attendanceRecords.filter(r => r.status === 'Sakit').length,
-    izin: data.attendanceRecords.filter(r => r.status === 'Izin').length,
-    alpha: data.attendanceRecords.filter(r => r.status === 'Alpha').length
-  };
-
-  const attendanceRate = attendanceSummary.total > 0
-    ? Math.round((attendanceSummary.hadir / attendanceSummary.total) * 100)
-    : 0;
-
-  const violationSummary = {
-    total: data.violations.length,
-    totalPoints: data.violations.reduce((sum, v) => sum + v.points, 0),
-    recent: data.violations.slice(-3)
-  };
-
-  const quizSummary = {
-    total: data.quizPoints.length,
-    totalPoints: data.quizPoints.reduce((sum, q) => sum + q.points, 0),
-    averagePerActivity: data.quizPoints.length > 0
-      ? Math.round(data.quizPoints.reduce((sum, q) => sum + q.points, 0) / data.quizPoints.length)
-      : 0
-  };
-
-  const prompt = `
-Analisis perkembangan anak dengan data berikut:
-
-**DATA SISWA:**
-- Nama: ${data.student.name}
-- Usia: ${data.student.age || 'Tidak diketahui'} tahun
-- Kelas: ${data.student.class || 'Tidak diketahui'}
-
-**DATA AKADEMIK (KOGNITIF):**
-- Jumlah penilaian: ${data.academicRecords.length}
-- Rata-rata nilai keseluruhan: ${averageScore}
-- Nilai per mata pelajaran:
-${subjectAverages.map(s => `  * ${s.subject}: ${s.average}`).join('\n')}
-- Detail nilai tertinggi: ${Math.max(...data.academicRecords.map(r => r.score))}
-- Detail nilai terendah: ${Math.min(...data.academicRecords.map(r => r.score))}
-
-**DATA KEHADIRAN (AFEKTIF - Disiplin):**
-- Total hari sekolah: ${attendanceSummary.total}
-- Tingkat kehadiran: ${attendanceRate}%
-- Hadir: ${attendanceSummary.hadir} hari
-- Sakit: ${attendanceSummary.sakit} hari
-- Izin: ${attendanceSummary.izin} hari
-- Alpha (tanpa keterangan): ${attendanceSummary.alpha} hari
-
-**DATA PERILAKU (AFEKTIF - Karakter):**
-- Jumlah pelanggaran: ${violationSummary.total}
-- Total poin pelanggaran: ${violationSummary.totalPoints}
-${violationSummary.recent.length > 0 ? `- Pelanggaran terbaru:\n${violationSummary.recent.map(v => `  * ${v.description} (${v.points} poin)`).join('\n')}` : '- Tidak ada pelanggaran tercatat'}
-
-**DATA PARTISIPASI (PSIKOMOTOR & AFEKTIF):**
-- Jumlah kegiatan quiz/praktik: ${quizSummary.total}
-- Total poin partisipasi: ${quizSummary.totalPoints}
-- Rata-rata poin per kegiatan: ${quizSummary.averagePerActivity}
-
-**TUGAS ANALISIS:**
-
-Berikan analisis komprehensif dalam format JSON dengan struktur berikut:
-
-{
-  "summary": {
-    "name": "${data.student.name}",
-    "age": ${data.student.age || 7},
-    "class": "${data.student.class || 'SD'}",
-    "overallAssessment": "Ringkasan 2-3 kalimat tentang kondisi perkembangan anak secara keseluruhan"
-  },
-  "cognitive": {
-    "strengths": ["3-4 kekuatan kognitif spesifik dengan contoh konkret"],
-    "areasForDevelopment": ["2-3 area yang perlu dikembangkan dengan penjelasan"],
-    "learningStyle": "Visual/Auditori/Kinestetik/Campuran (pilih yang paling sesuai berdasarkan pola nilai)",
-    "criticalThinking": "Evaluasi kemampuan berpikir kritis berdasarkan variasi nilai dan performa",
-    "academicComparison": "Perbandingan dengan standar usia dan kelas yang sesuai"
-  },
-  "affective": {
-    "positiveCharacters": ["3-4 karakter positif yang menonjol"],
-    "socialSkills": "Deskripsi kemampuan sosial berdasarkan kehadiran dan partisipasi",
-    "characterDevelopmentAreas": ["2-3 aspek karakter yang perlu dikembangkan"],
-    "emotionalIntelligence": "Evaluasi kecerdasan emosional dari pola perilaku",
-    "discipline": "Penilaian kedisiplinan dari data kehadiran dan pelanggaran"
-  },
-  "psychomotor": {
-    "motorSkills": "Deskripsi kondisi kemampuan motorik saat ini (inferensi dari partisipasi praktik)",
-    "outstandingSkills": ["2-3 keterampilan psikomotor yang menonjol"],
-    "areasNeedingStimulation": ["1-2 area yang perlu stimulasi lebih"],
-    "coordination": "Evaluasi koordinasi dari data partisipasi kegiatan"
-  },
-  "recommendations": {
-    "homeSupport": [
-      "3-4 aktivitas KONKRET yang bisa dilakukan orang tua di rumah",
-      "Contoh: 'Baca bersama 15 menit setiap malam sebelum tidur'",
-      "Berikan aktivitas spesifik, bukan saran umum"
-    ],
-    "neededStimulation": {
-      "cognitive": ["Kegiatan spesifik untuk stimulasi kognitif"],
-      "affective": ["Kegiatan spesifik untuk pengembangan karakter & sosial"],
-      "psychomotor": ["Kegiatan spesifik untuk pengembangan motorik"]
-    },
-    "developmentPlan": {
-      "threeMonths": ["Target dan langkah konkret untuk 3 bulan ke depan"],
-      "sixMonths": ["Target dan langkah konkret untuk 6 bulan ke depan"]
-    },
-    "warningsSigns": [
-      "Indikator-indikator yang perlu diperhatikan orang tua",
-      "Tanda-tanda yang memerlukan konsultasi lebih lanjut"
-    ]
-  }
-}
-
-**PANDUAN PENULISAN:**
-1. Gunakan bahasa yang hangat dan supportif
-2. Berikan contoh konkret dan spesifik
-3. Hindari label negatif, gunakan bahasa konstruktif
-4. Semua rekomendasi harus actionable dan realistis
-5. Pertimbangkan konteks usia dan tahap perkembangan
-6. Berikan timeline yang jelas untuk setiap rekomendasi
-7. Fokus pada potensi dan growth mindset
-`;
-
   try {
+    // Validate data
+    if (!data || !data.student?.name) {
+      throw new Error('Data siswa tidak lengkap');
+    }
+
+    // Sanitize data
+    const validAcademicRecords = (data.academicRecords || []).filter(r => r && typeof r.score === 'number');
+    const validAttendanceRecords = (data.attendanceRecords || []).filter(r => r && r.status);
+    const validViolations = (data.violations || []).filter(v => v && v.description);
+    const validQuizPoints = (data.quizPoints || []).filter(q => q && q.activity);
+
+    // Calculate statistics
+    const averageScore = validAcademicRecords.length > 0
+      ? Math.round(validAcademicRecords.reduce((sum, r) => sum + r.score, 0) / validAcademicRecords.length)
+      : 0;
+
+    const subjectScores = validAcademicRecords.reduce((acc, record) => {
+      const subject = record.subject || 'Lainnya';
+      if (!acc[subject]) acc[subject] = [];
+      acc[subject].push(record.score);
+      return acc;
+    }, {} as Record<string, number[]>);
+
+    const subjectAverages = Object.entries(subjectScores).map(([subject, scores]) => ({
+      subject,
+      average: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+    }));
+
+    const attendanceSummary = {
+      total: validAttendanceRecords.length,
+      hadir: validAttendanceRecords.filter(r => r.status === 'Hadir').length,
+      sakit: validAttendanceRecords.filter(r => r.status === 'Sakit').length,
+      izin: validAttendanceRecords.filter(r => r.status === 'Izin').length,
+      alpha: validAttendanceRecords.filter(r => r.status === 'Alpha').length
+    };
+
+    const attendanceRate = attendanceSummary.total > 0
+      ? Math.round((attendanceSummary.hadir / attendanceSummary.total) * 100)
+      : 100;
+
+    const violationSummary = {
+      total: validViolations.length,
+      totalPoints: validViolations.reduce((sum, v) => sum + (v.points || 0), 0),
+      recent: validViolations.slice(-3)
+    };
+
+    // Check if AI is available
+    if (!ai) {
+      console.warn('AI service not available, using fallback analysis');
+      return generateFallbackAnalysis(data, averageScore, attendanceRate, violationSummary.total);
+    }
+
+    // Build prompt
+    const systemInstruction = `Anda adalah seorang psikolog anak dan ahli perkembangan anak yang berpengalaman. Analisis data perkembangan anak secara holistik berdasarkan domain Kognitif, Afektif, dan Psikomotor. Berikan analisis yang mendalam, empati, dan actionable dalam Bahasa Indonesia yang mudah dipahami.`;
+
+    const prompt = `Analisis perkembangan anak dengan data berikut:
+
+SISWA: ${data.student.name}, Usia: ${data.student.age || 7} tahun, Kelas: ${data.student.class || 'SD'}
+
+AKADEMIK:
+- Jumlah penilaian: ${validAcademicRecords.length}
+- Rata-rata nilai: ${averageScore}
+- Nilai per mapel: ${subjectAverages.length > 0 ? subjectAverages.map(s => `${s.subject} (${s.average})`).join(', ') : 'Belum ada data'}
+- Tertinggi: ${validAcademicRecords.length > 0 ? Math.max(...validAcademicRecords.map(r => r.score)) : 0}
+- Terendah: ${validAcademicRecords.length > 0 ? Math.min(...validAcademicRecords.map(r => r.score)) : 0}
+
+KEHADIRAN: ${attendanceRate}% (${attendanceSummary.hadir}/${attendanceSummary.total} hari)
+
+PERILAKU: ${violationSummary.total} pelanggaran (${violationSummary.totalPoints} poin)
+
+PARTISIPASI: ${validQuizPoints.length} kegiatan
+
+Berikan analisis dalam format JSON dengan struktur:
+{"summary":{"name":"","age":0,"class":"","overallAssessment":""},"cognitive":{"strengths":[],"areasForDevelopment":[],"learningStyle":"","criticalThinking":"","academicComparison":""},"affective":{"positiveCharacters":[],"socialSkills":"","characterDevelopmentAreas":[],"emotionalIntelligence":"","discipline":""},"psychomotor":{"motorSkills":"","outstandingSkills":[],"areasNeedingStimulation":[],"coordination":""},"recommendations":{"homeSupport":[],"neededStimulation":{"cognitive":[],"affective":[],"psychomotor":[]},"developmentPlan":{"threeMonths":[],"sixMonths":[]},"warningsSigns":[]}}`;
+
+    // Call AI
     const model = ai.getGenerativeModel({
-      model: 'gemini-pro',
-      systemInstruction
+      model: 'gemini-1.5-flash',
+      systemInstruction,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 8192,
+      }
     });
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     let text = response.text();
 
+    // Parse response
     text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    // Extract JSON
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      text = jsonMatch[0];
+    }
 
     const analysis = JSON.parse(text) as ComprehensiveChildAnalysis;
 
     return analysis;
-  } catch (error) {
+
+  } catch (error: any) {
     console.error('Error generating child development analysis:', error);
-    throw new Error('Gagal menghasilkan analisis perkembangan anak. Silakan coba lagi.');
+    console.error('Error details:', error.message);
+
+    // Use fallback analysis
+    const validAcademicRecords = (data.academicRecords || []).filter(r => r && typeof r.score === 'number');
+    const validAttendanceRecords = (data.attendanceRecords || []).filter(r => r && r.status);
+    const validViolations = (data.violations || []).filter(v => v && v.description);
+
+    const averageScore = validAcademicRecords.length > 0
+      ? Math.round(validAcademicRecords.reduce((sum, r) => sum + r.score, 0) / validAcademicRecords.length)
+      : 0;
+
+    const attendanceRate = validAttendanceRecords.length > 0
+      ? Math.round((validAttendanceRecords.filter(r => r.status === 'Hadir').length / validAttendanceRecords.length) * 100)
+      : 100;
+
+    return generateFallbackAnalysis(data, averageScore, attendanceRate, validViolations.length);
   }
 }
 
@@ -262,42 +327,28 @@ export async function generateQuickInsights(
   concernSummary: string;
   quickTips: string[];
 }> {
-  const systemInstruction = `
-Anda adalah asisten AI yang memberikan insight cepat tentang perkembangan anak.
-Berikan poin-poin singkat dan actionable dalam Bahasa Indonesia.
-`;
-
-  const averageScore = data.academicRecords.length > 0
-    ? Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)
-    : 0;
-
-  const prompt = `
-Berikan insight cepat untuk siswa ${data.student.name}:
-- Rata-rata nilai: ${averageScore}
-- Tingkat kehadiran: ${Math.round((data.attendanceRecords.filter(r => r.status === 'Hadir').length / Math.max(data.attendanceRecords.length, 1)) * 100)}%
-- Pelanggaran: ${data.violations.length}
-
-Berikan dalam format JSON:
-{
-  "strengthSummary": "1 kalimat tentang kekuatan utama",
-  "concernSummary": "1 kalimat tentang concern utama (jika ada, atau 'Tidak ada concern khusus')",
-  "quickTips": ["3 tips singkat dan actionable untuk orang tua"]
-}
-`;
-
   try {
-    const model = ai.getGenerativeModel({
-      model: 'gemini-pro',
-      systemInstruction
-    });
+    const validAcademicRecords = (data.academicRecords || []).filter(r => r && typeof r.score === 'number');
+    const validAttendanceRecords = (data.attendanceRecords || []).filter(r => r && r.status);
+    const validViolations = (data.violations || []).filter(v => v && v.description);
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
+    const averageScore = validAcademicRecords.length > 0
+      ? Math.round(validAcademicRecords.reduce((sum, r) => sum + r.score, 0) / validAcademicRecords.length)
+      : 0;
 
-    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const attendanceRate = validAttendanceRecords.length > 0
+      ? Math.round((validAttendanceRecords.filter(r => r.status === 'Hadir').length / validAttendanceRecords.length) * 100)
+      : 100;
 
-    return JSON.parse(text);
+    return {
+      strengthSummary: averageScore >= 75 ? 'Siswa menunjukkan prestasi akademik yang baik' : 'Siswa menunjukkan usaha dalam belajar',
+      concernSummary: validViolations.length > 3 ? 'Perlu perhatian pada aspek kedisiplinan' : 'Tidak ada concern khusus',
+      quickTips: [
+        'Pertahankan komunikasi terbuka dengan anak setiap hari',
+        'Dukung kegiatan belajar di rumah dengan jadwal teratur',
+        'Apresiasi setiap usaha dan kemajuan yang dicapai'
+      ]
+    };
   } catch (error) {
     console.error('Error generating quick insights:', error);
     return {
