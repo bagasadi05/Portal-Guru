@@ -77,6 +77,7 @@ const StudentsPage: React.FC = () => {
     const [classModalMode, setClassModalMode] = useState<'add' | 'edit'>('add');
     const [currentClass, setCurrentClass] = useState<ClassRow | null>(null);
     const [classNameInput, setClassNameInput] = useState('');
+    const [isClassManageModalOpen, setIsClassManageModalOpen] = useState(false);
 
     const [confirmModalState, setConfirmModalState] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; confirmVariant?: 'default' | 'destructive', confirmText?: string }>({ isOpen: false, title: '', message: '', onConfirm: () => {}, confirmVariant: 'destructive' });
 
@@ -266,18 +267,11 @@ const StudentsPage: React.FC = () => {
                         <TabsList>
                             {classes.map(c => (
                                 <TabsTrigger key={c.id} value={c.id}>
-                                    <div className="group relative flex items-center gap-2">
-                                        <span>{c.name}</span>
-                                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                                            <Button size="icon" variant="ghost" className="h-5 w-5" onClick={(e) => {e.stopPropagation(); handleOpenClassModal('edit', c)}}><PencilIcon className="h-3 w-3" /></Button>
-                                            <Button size="icon" variant="ghost" className="h-5 w-5 text-red-500" onClick={(e) => {e.stopPropagation(); handleDeleteClassClick(c)}}><TrashIcon className="h-3 w-3" /></Button>
-                                            <Button size="icon" variant="ghost" className="h-5 w-5 text-green-500" onClick={(e) => {e.stopPropagation(); handleGenerateCodesClick(c)}} title="Buat kode akses massal"><KeyRoundIcon className="h-3 w-3" /></Button>
-                                        </div>
-                                    </div>
+                                    <span>{c.name}</span>
                                 </TabsTrigger>
                             ))}
                         </TabsList>
-                        <Button size="sm" variant="outline" onClick={() => handleOpenClassModal('add')} className="rounded-full"><PlusIcon className="w-4 h-4 mr-1" /> Tambah Kelas</Button>
+                        <Button size="sm" variant="outline" onClick={() => setIsClassManageModalOpen(true)} className="rounded-full"><PencilIcon className="w-4 h-4 mr-2" /> Kelola Kelas</Button>
                     </div>
 
                     {classes.map(c => (
@@ -336,7 +330,25 @@ const StudentsPage: React.FC = () => {
                     <div className="flex justify-end gap-2 pt-4"><Button type="button" variant="ghost" onClick={() => setIsStudentModalOpen(false)}>Batal</Button><Button type="submit" disabled={isAddingStudent || isUpdatingStudent}>{isAddingStudent || isUpdatingStudent ? 'Menyimpan...' : 'Simpan'}</Button></div>
                 </form>
             </Modal>
-            {/* Class Modal */}
+            
+            {/* Class Management Modals */}
+             <Modal isOpen={isClassManageModalOpen} onClose={() => setIsClassManageModalOpen(false)} title="Kelola Kelas">
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    {classes.map(c => (
+                        <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-black/20">
+                            <span className="font-semibold">{c.name}</span>
+                            <div className="flex items-center gap-1">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setIsClassManageModalOpen(false); handleGenerateCodesClick(c); }} title="Buat kode akses massal"><KeyRoundIcon className="h-4 w-4 text-green-500" /></Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setIsClassManageModalOpen(false); handleOpenClassModal('edit', c); }}><PencilIcon className="h-4 w-4" /></Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => handleDeleteClassClick(c)}><TrashIcon className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+                    <Button onClick={() => { setIsClassManageModalOpen(false); handleOpenClassModal('add'); }} className="w-full"><PlusIcon className="w-4 h-4 mr-2" /> Tambah Kelas Baru</Button>
+                </div>
+             </Modal>
             <Modal isOpen={isClassModalOpen} onClose={() => setIsClassModalOpen(false)} title={classModalMode === 'add' ? 'Tambah Kelas Baru' : 'Edit Kelas'}>
                 <form onSubmit={handleClassFormSubmit} className="space-y-4">
                     <div><label htmlFor="class-name">Nama Kelas</label><Input id="class-name" value={classNameInput} onChange={e => setClassNameInput(e.target.value)} required placeholder="cth. 7A"/></div>

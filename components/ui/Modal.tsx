@@ -35,7 +35,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg mx-4 animate-fade-in-up"
+        className="relative w-full max-w-lg mx-4 animate-fade-in-up modal-glow-border"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
       >
         <div className="relative overflow-hidden rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-2xl border border-gray-200/20 dark:border-gray-700/50">

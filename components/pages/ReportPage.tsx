@@ -1,17 +1,14 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../hooks/useToast';
-import { Button } from '../ui/Button';
-import { PrinterIcon, ArrowLeftIcon, BrainCircuitIcon, PlusIcon, TrashIcon, SparklesIcon } from '../Icons';
-import { AttendanceStatus } from '../../types';
 import { Database } from '../../services/database.types';
-import { GoogleGenAI, Type } from '@google/genai';
+import { generateStudentReport, ReportData } from '../../services/pdfGenerator';
+import { Button } from '../ui/Button';
+import { PrinterIcon, ArrowLeftIcon, FileTextIcon, GraduationCapIcon } from '../Icons';
 import jsPDF from 'jspdf';
-import { generateStudentReport, ReportData as ReportDataType } from '../../services/pdfGenerator';
-
+import { useToast } from '../../hooks/useToast';
 
 type StudentRow = Database['public']['Tables']['students']['Row'];
 type ClassRow = Database['public']['Tables']['classes']['Row'];
@@ -20,424 +17,153 @@ type AttendanceRow = Database['public']['Tables']['attendance']['Row'];
 type AcademicRecordRow = Database['public']['Tables']['academic_records']['Row'];
 type ViolationRow = Database['public']['Tables']['violations']['Row'];
 type QuizPointRow = Database['public']['Tables']['quiz_points']['Row'];
-
 type StudentWithClass = StudentRow & { classes: Pick<ClassRow, 'id' | 'name'> | null };
 
-type ReportData = {
-    student: StudentWithClass,
-    reports: ReportRow[],
-    attendanceRecords: AttendanceRow[],
-    academicRecords: AcademicRecordRow[],
-    violations: ViolationRow[],
-    quizPoints: QuizPointRow[],
-};
-
-// --- FIX: Define specific types for editable state to replace 'any[]' ---
-type EditableAcademicRecord = Omit<AcademicRecordRow, 'id'> & {
-    id: string | number; // Allow for 'new-...' ids
-    predikat: string;
-    deskripsi: string;
-};
-type EditableQuizPoint = Omit<QuizPointRow, 'id'> & { id: string | number };
-type EditableViolation = Omit<ViolationRow, 'id'> & { id: string | number };
-
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const fetchReportData = async (studentId: string | undefined, userId: string): Promise<ReportData> => {
-    if (!studentId) throw new Error("Student ID is required.");
-    
-    const studentRes = await supabase.from('students').select('*').eq('id', studentId).eq('user_id', userId).single();
+const fetchReportData = async (studentId: string, userId: string): Promise<ReportData> => {
+    const studentRes = await supabase.from('students').select('*, classes(id, name)').eq('id', studentId).eq('user_id', userId).single();
     if (studentRes.error) throw new Error(studentRes.error.message);
-    
-    const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes, classRes] = await Promise.all([
+    const [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes] = await Promise.all([
         supabase.from('reports').select('*').eq('student_id', studentId),
         supabase.from('attendance').select('*').eq('student_id', studentId),
         supabase.from('academic_records').select('*').eq('student_id', studentId),
         supabase.from('violations').select('*').eq('student_id', studentId),
-        supabase.from('quiz_points').select('*').eq('student_id', studentId),
-        supabase.from('classes').select('id, name').eq('id', studentRes.data.class_id).single(),
+        supabase.from('quiz_points').select('*').eq('student_id', studentId)
     ]);
-
-    if (reportsRes.error || attendanceRes.error || academicRes.error || violationsRes.error || quizPointsRes.error || classRes.error) {
-        throw new Error('Failed to fetch one or more report data components.');
-    }
-
-    const studentWithClass: StudentWithClass = {
-        ...studentRes.data,
-        classes: classRes.data ? { id: classRes.data.id, name: classRes.data.name } : null
-    };
-
+    const errors = [reportsRes, attendanceRes, academicRes, violationsRes, quizPointsRes].map(r => r.error).filter(Boolean);
+    if (errors.length > 0) throw new Error(errors.map(e => e!.message).join(', '));
     return {
-        student: studentWithClass,
-        reports: reportsRes.data || [],
-        attendanceRecords: attendanceRes.data || [],
-        academicRecords: academicRes.data || [],
-        violations: violationsRes.data || [],
-        quizPoints: quizPointsRes.data || [],
+        student: studentRes.data as any, reports: reportsRes.data || [], attendanceRecords: attendanceRes.data || [],
+        academicRecords: academicRes.data || [], violations: violationsRes.data || [], quizPoints: quizPointsRes.data || []
     };
-};
-
-const getPredicate = (score: number): { predikat: string; deskripsi: string; } => {
-    if (score >= 86) return { predikat: 'A', deskripsi: 'Menunjukkan penguasaan materi yang sangat baik.' };
-    if (score >= 76) return { predikat: 'B', deskripsi: 'Menunjukkan penguasaan materi yang baik.' };
-    if (score >= 66) return { predikat: 'C', deskripsi: 'Menunjukkan penguasaan materi yang cukup.' };
-    return { predikat: 'D', deskripsi: 'Memerlukan bimbingan lebih lanjut.' };
-};
-
-const EditableCell: React.FC<{ value: string | number, onChange: (value: string | number) => void, type?: 'text' | 'number' | 'textarea', className?: string, rows?: number }> = ({ value, onChange, type = 'text', className, rows }) => {
-    if (type === 'textarea') {
-        return (
-            <textarea
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className={`w-full p-2 bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/50 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm resize-none ${className}`}
-                rows={rows || 3}
-            />
-        )
-    }
-    return (
-        <input 
-            type={type} 
-            value={value}
-            onChange={(e) => onChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
-            className={`w-full p-2 bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/50 focus:outline-none focus:ring-1 focus:ring-yellow-500 rounded-sm font-serif text-sm ${className}`}
-        />
-    );
 };
 
 const ReportPage: React.FC = () => {
     const { studentId } = useParams<{ studentId: string }>();
-    const navigate = useNavigate();
     const { user } = useAuth();
     const toast = useToast();
 
-    const [isGeneratingNote, setIsGeneratingNote] = useState(false);
-    const [generatingSubjectNote, setGeneratingSubjectNote] = useState<number | null>(null);
-    const [isExporting, setIsExporting] = useState(false);
-    
-    const [reportHeader, setReportHeader] = useState({
-        title: "LAPORAN HASIL BELAJAR SISWA",
-        schoolName: "MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN",
-        academicYear: "Tahun Ajaran 2025/2026 - Semester Ganjil"
-    });
-    const [studentInfo, setStudentInfo] = useState({ name: '', className: '' });
-    // --- FIX: Use specific types for state instead of any[] ---
-    const [editableAcademicRecords, setEditableAcademicRecords] = useState<EditableAcademicRecord[]>([]);
-    const [editableQuizPoints, setEditableQuizPoints] = useState<EditableQuizPoint[]>([]);
-    const [editableViolations, setEditableViolations] = useState<EditableViolation[]>([]);
-    const [editableAttendanceSummary, setEditableAttendanceSummary] = useState({ Sakit: 0, Izin: 0, Alpha: 0 });
-    const [behavioralNote, setBehavioralNote] = useState('Tidak ada catatan pelanggaran.');
-    const [teacherNote, setTeacherNote] = useState('');
-
+    // FIX: Add generic type to useQuery to ensure 'data' is correctly typed.
     const { data, isLoading, isError, error } = useQuery<ReportData>({
-        queryKey: ['reportData', studentId],
-        queryFn: () => fetchReportData(studentId, user!.id),
+        queryKey: ['reportData', studentId, user?.id],
+        queryFn: () => fetchReportData(studentId!, user!.id),
         enabled: !!studentId && !!user,
     });
-    
-    const handleGenerateAiNote = async () => {
-        if (!data) return;
-        setIsGeneratingNote(true);
-        toast.info("AI sedang merangkum catatan guru...");
-        try {
-            const systemInstruction = `Anda adalah seorang guru wali kelas yang bijaksana, suportif, dan profesional. Tugas Anda adalah menulis paragraf "Catatan Wali Kelas" untuk rapor siswa. Catatan ini harus komprehensif, merangkum performa siswa secara holistik, dan memberikan motivasi. Tulis dalam satu paragraf yang mengalir (3-5 kalimat). Hindari penggunaan daftar atau poin.`;
-            
-            const academicSummary = data.academicRecords.length > 0
-                ? `Secara akademis, nilai rata-ratanya adalah ${Math.round(data.academicRecords.reduce((sum, r) => sum + r.score, 0) / data.academicRecords.length)}. Mata pelajaran terkuatnya adalah ${[...data.academicRecords].sort((a, b) => b.score - a.score)[0]?.subject}.`
-                : 'Belum ada data nilai akademik yang signifikan.';
 
-            const behaviorSummary = data.violations.length > 0
-                ? `Dari segi perilaku, terdapat ${data.violations.length} catatan pelanggaran dengan total ${data.violations.reduce((sum, v) => sum + v.points, 0)} poin.`
-                : 'Siswa menunjukkan perilaku yang sangat baik tanpa catatan pelanggaran.';
-
-            const prompt = `Buatkan draf "Catatan Wali Kelas" untuk siswa bernama ${data.student.name}.
-            
-            Berikut adalah data ringkas sebagai dasar analisis Anda:
-            - **Analisis Akademik:** ${academicSummary}
-            - **Analisis Perilaku:** ${behaviorSummary}
-            - **Kehadiran:** Sakit ${editableAttendanceSummary.Sakit} hari, Izin ${editableAttendanceSummary.Izin} hari, Alpha ${editableAttendanceSummary.Alpha} hari.
-            
-            Tugas Anda:
-            Sintesis semua informasi di atas menjadi satu paragraf catatan wali kelas yang kohesif. Pastikan catatan tersebut mencakup evaluasi umum, menyoroti kekuatan atau area yang perlu ditingkatkan, dan diakhiri dengan kalimat rekomendasi atau motivasi yang positif.
-            `;
-
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction }});
-            setTeacherNote(response.text.replace(/\\n/g, ' '));
-            toast.success("Catatan guru berhasil dibuat oleh AI!");
-        } catch (err) {
-            toast.error("Gagal membuat catatan guru.");
-            console.error(err);
-        } finally {
-            setIsGeneratingNote(false);
-        }
-    };
-    
-    useEffect(() => {
-        if (data) {
-            setStudentInfo({
-                name: data.student.name,
-                className: data.student.classes?.name || 'N/A',
-            });
-
-            const processedAcademicRecords: EditableAcademicRecord[] = data.academicRecords.map(r => ({
-                ...r,
-                ...getPredicate(r.score),
-                deskripsi: getPredicate(r.score).deskripsi // Pastikan deskripsi awal ada
-            }));
-            setEditableAcademicRecords(processedAcademicRecords);
-            
-            setEditableQuizPoints(data.quizPoints.sort((a,b) => new Date(a.quiz_date).getTime() - new Date(b.quiz_date).getTime()));
-
-            setEditableViolations(data.violations.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            
-            const attendanceSum = data.attendanceRecords.reduce((acc, record) => {
-                if (record.status !== 'Hadir') {
-                    acc[record.status] = (acc[record.status] || 0) + 1;
-                }
-                return acc;
-            }, { Sakit: 0, Izin: 0, Alpha: 0 } as Record<Exclude<AttendanceStatus, 'Hadir'>, number>);
-            setEditableAttendanceSummary(attendanceSum);
-            
-            if (data.violations.length > 0) {
-                setBehavioralNote(`Terdapat ${data.violations.length} catatan pelanggaran.`);
-            } else {
-                setBehavioralNote("Tidak ada catatan pelanggaran. Siswa menunjukkan sikap yang baik dan terpuji selama proses pembelajaran.");
-            }
-        }
+    const teacherNote = useMemo(() => {
+        if (!data) return '';
+        // In a real app, this might come from a dedicated "teacher comments" table or be generated by AI.
+        // For now, we'll use a generic template.
+        return `Ananda ${data.student.name} menunjukkan perkembangan yang baik semester ini. Sikap di kelas sangat positif dan aktif dalam diskusi. Terus tingkatkan semangat belajar dan jangan ragu bertanya jika ada kesulitan.`;
     }, [data]);
-    
-    // --- FIX: Create specific, type-safe handlers for each list ---
-    const handleAcademicRecordChange = (index: number, field: keyof EditableAcademicRecord, value: string | number) => {
-        setEditableAcademicRecords(prev => {
-            const newList = [...prev];
-            const updatedRecord = { ...newList[index], [field]: value };
-            if (field === 'score') {
-                Object.assign(updatedRecord, getPredicate(Number(value)));
-            }
-            newList[index] = updatedRecord;
-            return newList;
-        });
-    };
 
-    const handleQuizPointChange = (index: number, field: keyof EditableQuizPoint, value: string | number) => {
-        setEditableQuizPoints(prev => {
-            const newList = [...prev];
-            newList[index] = { ...newList[index], [field]: value as any };
-            return newList;
-        });
-    };
-
-    const handleViolationChange = (index: number, field: keyof EditableViolation, value: string | number) => {
-        setEditableViolations(prev => {
-            const newList = [...prev];
-            newList[index] = { ...newList[index], [field]: value as any };
-            return newList;
-        });
-    };
-    
-    // --- FIX: Ensure new rows are created with all required properties ---
-    const handleAddAcademicRecordRow = () => {
-        setEditableAcademicRecords(prev => [...prev, {
-            id: `new-${Date.now()}`,
-            student_id: studentId!,
-            user_id: user!.id,
-            created_at: new Date().toISOString(),
-            notes: '',
-            subject: '',
-            assessment_name: '',
-            score: 0,
-            predikat: 'D',
-            deskripsi: 'Memerlukan bimbingan lebih lanjut.',
-        }]);
-    };
-
-    const handleRemoveAcademicRecordRow = (index: number) => {
-        setEditableAcademicRecords(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleAddQuizPointRow = () => {
-        setEditableQuizPoints(prev => [...prev, {
-            id: `new-${Date.now()}`,
-            created_at: new Date().toISOString(),
-            student_id: studentId!,
-            user_id: user!.id,
-            points: 1,
-            max_points: 1,
-            quiz_date: new Date().toISOString().slice(0, 10),
-            quiz_name: '',
-            subject: '',
-        }]);
-    };
-
-    const handleRemoveQuizPointRow = (index: number) => {
-        setEditableQuizPoints(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleAddViolationRow = () => {
-        setEditableViolations(prev => [...prev, {
-            id: `new-${Date.now()}`,
-            created_at: new Date().toISOString(),
-            student_id: studentId!,
-            user_id: user!.id,
-            date: new Date().toISOString().slice(0, 10),
-            description: '',
-            points: 0,
-        }]);
-    };
-
-    const handleRemoveViolationRow = (index: number) => {
-        setEditableViolations(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleGenerateSubjectNote = async (index: number, subject: string, score: number) => {
-        setGeneratingSubjectNote(index);
-        try {
-            const systemInstruction = `Anda adalah seorang guru yang memberikan deskripsi singkat dan konstruktif untuk rapor siswa berdasarkan nilai yang diperoleh. Deskripsi harus mencerminkan tingkat pemahaman siswa. Berikan dalam satu kalimat.`;
-            const prompt = `Buat deskripsi rapor untuk mata pelajaran "${subject}" dengan nilai ${score}.`;
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { systemInstruction } });
-            
-            handleAcademicRecordChange(index, 'deskripsi', response.text);
-
-        } catch (error) {
-            toast.error("Gagal membuat deskripsi AI.");
-            console.error(error);
-        } finally {
-            setGeneratingSubjectNote(null);
+    const handlePrint = () => {
+        if (!data) {
+            toast.error("Data laporan tidak tersedia untuk dicetak.");
+            return;
         }
-    };
-
-    const handleExportPdf = () => {
-        if (!data || !user) return;
-        setIsExporting(true);
-        toast.info("Membuat PDF rapor...");
-    
         try {
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            
-            const currentReportData: ReportDataType = {
-                student: data.student,
-                academicRecords: editableAcademicRecords.map(r => ({ ...r, notes: r.deskripsi })),
-                quizPoints: editableQuizPoints,
-                violations: editableViolations,
-                attendanceRecords: data.attendanceRecords,
-                reports: data.reports,
-            };
-    
-            generateStudentReport(doc, currentReportData, teacherNote, user);
-    
-            doc.save(`Rapor_${studentInfo.name.replace(/\s/g, '_')}.pdf`);
-            toast.success("Rapor PDF berhasil dibuat!");
-        } catch (error: any) {
-            toast.error(`Gagal membuat PDF: ${error.message}`);
-            console.error(error);
-        } finally {
-            setIsExporting(false);
+            generateStudentReport(doc, data, teacherNote, user);
+            doc.save(`Rapor_${data.student.name}.pdf`);
+            toast.success("Rapor berhasil diunduh sebagai PDF!");
+        } catch (e: any) {
+            toast.error(`Gagal membuat PDF: ${e.message}`);
         }
     };
+    
+    // FIX: Explicitly typing the accumulator in the reduce function ensures that TypeScript correctly infers the return type, resolving the 'unknown' type error in the map function that consumes this data.
+    const academicRecordsBySubject = useMemo((): Record<string, AcademicRecordRow[]> => {
+        if (!data) return {};
+        // FIX: The initial value of the reduce function must be explicitly typed to help TypeScript correctly infer the accumulator's type throughout the operation.
+        return data.academicRecords.reduce((acc: Record<string, AcademicRecordRow[]>, record: AcademicRecordRow) => {
+            const subject = record.subject || 'Lainnya';
+            if (!acc[subject]) acc[subject] = [];
+            acc[subject].push(record);
+            return acc;
+        }, {} as Record<string, AcademicRecordRow[]>);
+    }, [data]);
+    
+    const attendanceSummary = useMemo(() => {
+        if (!data) return { Sakit: 0, Izin: 0, Alpha: 0 };
+        return data.attendanceRecords.reduce((acc, record) => {
+            if (record.status !== 'Hadir') { (acc as any)[record.status] = ((acc as any)[record.status] || 0) + 1; }
+            return acc;
+        }, { Sakit: 0, Izin: 0, Alpha: 0 });
+    }, [data]);
 
 
-    if (isLoading) {
-        return <div className="flex items-center justify-center h-screen"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
-    }
-
-    if (isError) {
-        return <div className="flex items-center justify-center h-screen">Error: {error.message}</div>;
-    }
-
-    if (!data) {
-        return <div className="flex items-center justify-center h-screen">Tidak ada data untuk ditampilkan.</div>;
-    }
+    if (isLoading) return <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900"><div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    if (isError) return <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900 text-red-500">Error: {error.message}</div>;
+    if (!data) return null;
 
     return (
-        <div className="bg-gray-100 dark:bg-gray-800 min-h-screen text-black dark:text-gray-200 animate-page-transition">
-            {/* Toolbar */}
-            <header className="sticky top-0 z-20 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-sm p-4 print:hidden">
-                <div className="max-w-4xl mx-auto flex justify-between items-center">
-                    <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeftIcon className="w-4 h-4 mr-2" />Kembali</Button>
-                    <div className="flex items-center gap-2">
-                         <Button onClick={handleGenerateAiNote} disabled={isGeneratingNote || !data}>
-                            <BrainCircuitIcon className="w-4 h-4 mr-2" />
-                            {isGeneratingNote ? "Membuat..." : "Buat Catatan AI"}
-                        </Button>
-                        <Button onClick={handleExportPdf} disabled={isExporting}>
-                            <PrinterIcon className="w-4 h-4 mr-2" />
-                            {isExporting ? "Mengekspor..." : "Cetak/PDF"}
-                        </Button>
-                    </div>
-                </div>
-            </header>
+        <div className="bg-gray-100 dark:bg-gray-900 min-h-screen font-serif">
+            <div className="fixed top-0 left-0 right-0 p-4 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md z-10 no-print flex justify-between items-center shadow-md">
+                <Link to={`/siswa/${studentId}`}><Button variant="ghost"><ArrowLeftIcon className="w-4 h-4 mr-2"/> Kembali ke Detail Siswa</Button></Link>
+                <h2 className="text-lg font-bold">Pratinjau Cetak Rapor</h2>
+                <Button onClick={handlePrint}><PrinterIcon className="w-4 h-4 mr-2"/> Cetak/Unduh PDF</Button>
+            </div>
 
-            {/* Main Report Content */}
-            <main className="p-4 md:p-8">
-                <div id="report-content" className="max-w-4xl mx-auto bg-white dark:bg-gray-950 p-8 shadow-2xl rounded-lg">
-                    {/* Header */}
-                    <header className="text-center mb-8 border-b-2 border-black dark:border-gray-600 pb-4">
-                        <EditableCell value={reportHeader.title} onChange={val => setReportHeader(p => ({ ...p, title: String(val) }))} className="text-xl font-bold text-center !p-1" />
-                        <EditableCell value={reportHeader.schoolName} onChange={val => setReportHeader(p => ({ ...p, schoolName: String(val) }))} className="text-sm text-center !p-1" />
-                        <EditableCell value={reportHeader.academicYear} onChange={val => setReportHeader(p => ({ ...p, academicYear: String(val) }))} className="text-sm text-center !p-1" />
+            <main className="pt-24 pb-12 px-4 md:px-8 lg:px-12 flex justify-center">
+                <div id="printable-area" className="w-full max-w-[210mm] min-h-[297mm] p-[20mm] bg-white text-black shadow-2xl">
+                    {/* --- HEADER --- */}
+                    <header className="text-center border-b-2 border-black pb-2 mb-6">
+                         <div className="flex justify-center items-center gap-4">
+                            <GraduationCapIcon className="w-10 h-10"/>
+                            <div>
+                                <h1 className="text-xl font-bold">LAPORAN HASIL BELAJAR SISWA</h1>
+                                <h2 className="text-sm">MI AL IRSYAD AL ISLAMIYYAH KOTA MADIUN</h2>
+                            </div>
+                         </div>
                     </header>
 
-                    {/* Student Info */}
-                    <section className="grid grid-cols-2 gap-x-8 gap-y-2 mb-8 text-sm">
-                        <div className="flex"><strong className="w-24">Nama Siswa</strong>: <EditableCell value={studentInfo.name} onChange={val => setStudentInfo(p => ({ ...p, name: String(val) }))} /></div>
-                        <div className="flex"><strong className="w-24">Kelas</strong>: <EditableCell value={studentInfo.className} onChange={val => setStudentInfo(p => ({ ...p, className: String(val) }))} /></div>
-                    </section>
+                    {/* --- STUDENT INFO --- */}
+                    <table className="text-sm mb-6 w-full"><tbody>
+                        <tr><td className="w-1/4 font-bold">Nama Siswa</td><td>: {data.student.name}</td></tr>
+                        <tr><td className="font-bold">Kelas</td><td>: {data.student.classes?.name || 'N/A'}</td></tr>
+                        <tr><td className="font-bold">Tahun Ajaran</td><td>: {new Date().getFullYear()} / {new Date().getFullYear() + 1}</td></tr>
+                    </tbody></table>
 
-                    {/* Academic Records */}
-                    <section className="mb-8">
-                        <h2 className="text-lg font-bold mb-2">A. Hasil Belajar Akademik</h2>
-                        <table className="w-full border-collapse border border-gray-400 dark:border-gray-600 text-sm">
-                           <thead><tr className="bg-gray-200 dark:bg-gray-800 font-bold"><td className="border p-2">No</td><td className="border p-2">Mata Pelajaran</td><td className="border p-2">Bentuk Penilaian</td><td className="border p-2">Nilai</td><td className="border p-2">Predikat</td><td className="border p-2 w-[35%]">Deskripsi</td><td className="w-10 print:hidden"></td></tr></thead>
+                    {/* --- ACADEMICS --- */}
+                    <section className="mb-6">
+                        <h3 className="font-bold border-b border-black mb-2">A. Capaian Akademik</h3>
+                        <table className="w-full text-xs border-collapse">
+                            <thead><tr className="bg-gray-200 text-left"><th className="border p-2">Mata Pelajaran</th><th className="border p-2">Penilaian</th><th className="border p-2">Nilai</th><th className="border p-2">Deskripsi Capaian</th></tr></thead>
                             <tbody>
-                                {editableAcademicRecords.map((record, index) => (
-                                    <tr key={record.id}><td className="border p-2 text-center">{index + 1}</td>
-                                    <td className="border"><EditableCell value={record.subject} onChange={val => handleAcademicRecordChange(index, 'subject', val)} /></td>
-                                    <td className="border"><EditableCell value={record.assessment_name || ''} onChange={val => handleAcademicRecordChange(index, 'assessment_name', val)} /></td>
-                                    <td className="border"><EditableCell type="number" value={record.score} onChange={val => handleAcademicRecordChange(index, 'score', val)} /></td>
-                                    <td className="border p-2 text-center">{record.predikat}</td>
-                                    <td className="border relative group">
-                                        <EditableCell type="textarea" value={record.deskripsi} onChange={val => handleAcademicRecordChange(index, 'deskripsi', val)} rows={3}/>
-                                        <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7 print:hidden opacity-0 group-hover:opacity-100" onClick={() => handleGenerateSubjectNote(index, record.subject, record.score)} disabled={generatingSubjectNote === index}>{generatingSubjectNote === index ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div> : <SparklesIcon className="w-4 h-4 text-purple-500"/>}</Button>
-                                    </td>
-                                    <td className="border p-1 text-center print:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleRemoveAcademicRecordRow(index)}><TrashIcon className="w-4 h-4"/></Button></td>
-                                    </tr>
+                                {Object.entries(academicRecordsBySubject).map(([subject, records]) => (
+                                    <React.Fragment key={subject}>
+                                        {(records as AcademicRecordRow[]).map((record, index) => (
+                                            <tr key={record.id}><td className="border p-2">{index === 0 ? subject : ''}</td><td className="border p-2">{record.assessment_name || '-'}</td><td className="border p-2 text-center">{record.score}</td><td className="border p-2">{record.notes || 'Capaian sesuai dengan nilai yang diperoleh.'}</td></tr>
+                                        ))}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
-                        <Button size="sm" variant="outline" onClick={handleAddAcademicRecordRow} className="mt-2 print:hidden"><PlusIcon className="w-4 h-4 mr-2"/>Tambah Baris</Button>
                     </section>
                     
-                    <div className="grid grid-cols-2 gap-8 mb-8">
-                         <section>
-                            <h2 className="text-lg font-bold mb-2">B. Ketidakhadiran</h2>
-                            <table className="w-full text-sm">
-                                <tbody>
-                                    <tr><td className="py-1">Sakit</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Sakit} onChange={val => setEditableAttendanceSummary(p => ({...p, Sakit: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
-                                    <tr><td className="py-1">Izin</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Izin} onChange={val => setEditableAttendanceSummary(p => ({...p, Izin: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
-                                    <tr><td className="py-1">Tanpa Keterangan</td><td className="py-1">: <EditableCell type="number" value={editableAttendanceSummary.Alpha} onChange={val => setEditableAttendanceSummary(p => ({...p, Alpha: Number(val)}))} className="inline-block w-16 ml-2 text-center"/> hari</td></tr>
-                                </tbody>
-                            </table>
-                        </section>
-                        <section>
-                            <h2 className="text-lg font-bold mb-2">C. Catatan Perilaku</h2>
-                            <EditableCell type="textarea" value={behavioralNote} onChange={(val) => setBehavioralNote(String(val))} rows={4}/>
-                        </section>
-                    </div>
-
-                    <section className="mb-8">
-                        <h2 className="text-lg font-bold mb-2">D. Catatan Wali Kelas</h2>
-                        <EditableCell type="textarea" value={teacherNote} onChange={(val) => setTeacherNote(String(val))} rows={5}/>
-                    </section>
-                    
-                     <footer className="pt-16 flex justify-end">
-                        <div className="text-center text-sm">
-                            <p>Madiun, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                            <p>Wali Kelas,</p>
-                            <div className="h-20"></div>
-                            <p className="font-bold underline">{user?.name || '___________________'}</p>
+                    {/* --- BEHAVIOR & ATTENDANCE --- */}
+                    <section className="mb-6">
+                        <h3 className="font-bold border-b border-black mb-2">B. Absensi & Perilaku</h3>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div><h4 className="font-semibold mb-1">Ketidakhadiran</h4><ul><li>Sakit: {attendanceSummary.Sakit} hari</li><li>Izin: {attendanceSummary.Izin} hari</li><li>Tanpa Keterangan: {attendanceSummary.Alpha} hari</li></ul></div>
+                            <div><h4 className="font-semibold mb-1">Catatan Perilaku</h4><ul>{(data.violations || []).length > 0 ? (data.violations || []).map(v => <li key={v.id}>- {v.description}</li>) : <li>Siswa menunjukkan sikap yang baik.</li>}</ul></div>
                         </div>
-                    </footer>
+                    </section>
+                    
+                    {/* --- TEACHER NOTE --- */}
+                    <section className="mb-8">
+                        <h3 className="font-bold border-b border-black mb-2">C. Catatan Wali Kelas</h3>
+                        <p className="text-sm italic p-2 border border-gray-200 rounded">{teacherNote}</p>
+                    </section>
+                    
+                    {/* --- SIGNATURES --- */}
+                    <div className="flex justify-between items-start text-sm mt-12">
+                        <div className="text-center">Orang Tua/Wali<br/><br/><br/><br/>(___________________)</div>
+                        <div className="text-center">
+                            Madiun, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Wali Kelas<br/><br/><br/><br/>
+                            <span className="font-bold underline">{user?.name}</span>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

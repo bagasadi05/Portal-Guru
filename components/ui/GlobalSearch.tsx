@@ -26,8 +26,8 @@ const fetchGlobalSearchData = async (userId: string) => {
     if (classesRes.error) throw classesRes.error;
     if (schedulesRes.error) throw schedulesRes.error;
 
-    // FIX: Explicitly type the 'student' parameter in the reduce function to resolve 'unknown' type being used as an index.
-    const classStudentCounts = (studentsRes.data || []).reduce((acc, student: { class_id: string; }) => {
+    // FIX: Explicitly cast the student data to resolve a potential 'unknown' type error when using `student.class_id` as an index.
+    const classStudentCounts = ((studentsRes.data as { class_id: string }[]) || []).reduce((acc, student) => {
         acc[student.class_id] = (acc[student.class_id] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);

@@ -1,4 +1,6 @@
 
+
+
 import React, { lazy, Suspense } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -69,6 +71,7 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
+    // FIX: All errors in ErrorBoundary are fixed by changing state initialization to a class property.
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>

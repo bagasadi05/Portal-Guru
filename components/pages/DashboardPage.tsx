@@ -254,6 +254,7 @@ const DashboardPage: React.FC = () => {
     
     const [subjectForCompletionCheck, setSubjectForCompletionCheck] = useState('');
     const [assessmentForCompletionCheck, setAssessmentForCompletionCheck] = useState('');
+    const [selectedClassForCheck, setSelectedClassForCheck] = useState<string>('');
 
     const uniqueSubjects = useMemo(() => {
         if (!data?.academicRecords) return [];
@@ -271,7 +272,6 @@ const DashboardPage: React.FC = () => {
         const uniqueAssessments = [...new Set(assessmentNames)].filter(Boolean); // Create unique set, then filter out empty strings
         
         // Use localeCompare for natural sorting (e.g., "PH 10" comes after "PH 2")
-        // FIX: Explicitly type `a` and `b` as strings to resolve the 'unknown' type error on `localeCompare`.
         return uniqueAssessments.sort((a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     }, [data?.academicRecords, subjectForCompletionCheck]);
 
@@ -305,17 +305,57 @@ const DashboardPage: React.FC = () => {
     
         const classMap = new Map((data.classes || []).map(c => [c.id, c.name]));
     
-        return data.students
+        // Filter students based on selected class (if any)
+        let targetStudents = data.students;
+        if (selectedClassForCheck) {
+            targetStudents = targetStudents.filter(s => s.class_id === selectedClassForCheck);
+        }
+
+        return targetStudents
             .filter(s => !gradedStudentIds.has(s.id))
             .map(s => ({
                 ...s,
                 className: classMap.get(s.class_id) || 'N/A'
             }));
-    }, [subjectForCompletionCheck, assessmentForCompletionCheck, data]);
+    }, [subjectForCompletionCheck, assessmentForCompletionCheck, data, selectedClassForCheck]);
+
+    const totalStudentsForCheck = useMemo(() => {
+        if (!data?.students) return 0;
+        if (selectedClassForCheck) {
+            return data.students.filter(s => s.class_id === selectedClassForCheck).length;
+        }
+        return data.students.length;
+    }, [data?.students, selectedClassForCheck]);
+
+    const completionPercentage = useMemo(() => {
+        if (totalStudentsForCheck === 0) return 0;
+        return Math.round(((totalStudentsForCheck - studentsMissingGrade.length) / totalStudentsForCheck) * 100);
+    }, [totalStudentsForCheck, studentsMissingGrade.length]);
 
     const handleNavigateToStudent = (studentId: string) => {
         navigate(`/siswa/${studentId}`, { state: { openTab: 'grades' } });
     }
+
+    const handleOpenMassInput = () => {
+        if (!subjectForCompletionCheck || !assessmentForCompletionCheck) return;
+        
+        // If specific class is selected, use it. Otherwise try to guess from first missing student or leave empty.
+        let classIdToPass = selectedClassForCheck;
+        if (!classIdToPass && studentsMissingGrade.length > 0) {
+            classIdToPass = studentsMissingGrade[0].class_id;
+        }
+
+        navigate('/input-massal', { 
+            state: { 
+                prefill: {
+                    mode: 'subject_grade',
+                    classId: classIdToPass,
+                    subject: subjectForCompletionCheck,
+                    assessment_name: assessmentForCompletionCheck
+                }
+            } 
+        });
+    };
 
     if (isLoading) return <DashboardPageSkeleton />;
 
@@ -328,6 +368,18 @@ const DashboardPage: React.FC = () => {
       { label: 'Tugas Aktif', value: tasks.length, icon: BookOpenIcon, link: '/tugas', color: 'from-amber-500 to-yellow-500', darkColor: 'dark:from-amber-500 dark:to-yellow-500' },
       { label: 'Jadwal Hari Ini', value: schedule.length, icon: CalendarIcon, link: '/jadwal', color: 'from-violet-500 to-purple-500', darkColor: 'dark:from-violet-500 dark:to-purple-500' }
     ];
+    
+    let nextClassIndex = -1;
+    for (let i = 0; i < todaySchedule.length; i++) {
+        const item = todaySchedule[i];
+        const [startH, startM] = item.start_time.split(':').map(Number);
+        const startTime = new Date(currentTime);
+        startTime.setHours(startH, startM, 0, 0);
+        if (startTime > currentTime) {
+            nextClassIndex = i;
+            break;
+        }
+    }
 
     return (
         <div className="w-full min-h-full p-4 sm:p-6 md:p-8 flex flex-col space-y-8 bg-transparent max-w-7xl mx-auto">
@@ -378,20 +430,39 @@ const DashboardPage: React.FC = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                                <Select value={subjectForCompletionCheck} onChange={handleSubjectChange} className="flex-1">
-                                    <option value="" disabled>Pilih Mata Pelajaran</option>
-                                    {uniqueSubjects.map((subject) => (
-                                        <option key={subject} value={subject}>{subject}</option>
-                                    ))}
-                                </Select>
-                                <Select value={assessmentForCompletionCheck} onChange={(e) => setAssessmentForCompletionCheck(e.target.value)} className="flex-1" disabled={uniqueAssessmentsForSubject.length === 0}>
-                                    <option value="" disabled>Pilih Penilaian</option>
-                                    {uniqueAssessmentsForSubject.map((assessment) => (
-                                        <option key={assessment} value={assessment}>{assessment}</option>
-                                    ))}
-                                </Select>
+                            <div className="space-y-4 mb-4">
+                                 <Select value={selectedClassForCheck} onChange={(e) => setSelectedClassForCheck(e.target.value)}>
+                                    <option value="">Semua Kelas</option>
+                                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                 </Select>
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <Select value={subjectForCompletionCheck} onChange={handleSubjectChange} className="flex-1">
+                                        <option value="" disabled>Pilih Mata Pelajaran</option>
+                                        {uniqueSubjects.map((subject) => (
+                                            <option key={subject} value={subject}>{subject}</option>
+                                        ))}
+                                    </Select>
+                                    <Select value={assessmentForCompletionCheck} onChange={(e) => setAssessmentForCompletionCheck(e.target.value)} className="flex-1" disabled={uniqueAssessmentsForSubject.length === 0}>
+                                        <option value="" disabled>Pilih Penilaian</option>
+                                        {uniqueAssessmentsForSubject.map((assessment) => (
+                                            <option key={assessment} value={assessment}>{assessment}</option>
+                                        ))}
+                                    </Select>
+                                </div>
                             </div>
+
+                            {subjectForCompletionCheck && assessmentForCompletionCheck && (
+                                <div className="mb-4">
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-gray-500 dark:text-gray-400">Progres Kelengkapan ({totalStudentsForCheck - studentsMissingGrade.length}/{totalStudentsForCheck})</span>
+                                        <span className={`font-bold ${completionPercentage === 100 ? 'text-green-500' : 'text-blue-500'}`}>{completionPercentage}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700 overflow-hidden">
+                                        <div className={`h-2 rounded-full transition-all duration-500 ${completionPercentage === 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${completionPercentage}%` }}></div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="max-h-64 overflow-y-auto space-y-1 pr-2">
                                 {subjectForCompletionCheck && assessmentForCompletionCheck ? (
                                     studentsMissingGrade.length > 0 ? (
@@ -427,6 +498,18 @@ const DashboardPage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {studentsMissingGrade.length > 0 && subjectForCompletionCheck && assessmentForCompletionCheck && (
+                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+                                    <Button onClick={handleOpenMassInput} className="w-full" size="sm">
+                                        <ClipboardPenIcon className="w-4 h-4 mr-2" />
+                                        Lengkapi via Input Massal
+                                    </Button>
+                                    <p className="text-xs text-center text-gray-400 mt-2">
+                                        {selectedClassForCheck ? 'Buka halaman input untuk kelas ini.' : 'Buka halaman input (pilih kelas otomatis).'}
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -440,8 +523,9 @@ const DashboardPage: React.FC = () => {
                                 <TabsTrigger value="tasks">Tugas Mendatang</TabsTrigger>
                             </TabsList>
                             <TabsContent value="schedule" className="flex-1 overflow-y-auto px-6 pb-6">
-                                <div className="space-y-3">
-                                    {todaySchedule.length > 0 ? todaySchedule.map(item => {
+                                <div className="relative space-y-3">
+                                    {todaySchedule.length > 1 && <div className="timeline-connector"></div>}
+                                    {todaySchedule.length > 0 ? todaySchedule.map((item, index) => {
                                         const now = currentTime;
                                         const [startH, startM] = item.start_time.split(':').map(Number);
                                         const [endH, endM] = item.end_time.split(':').map(Number);
@@ -449,51 +533,22 @@ const DashboardPage: React.FC = () => {
                                         const endTime = new Date(now); endTime.setHours(endH, endM, 0, 0);
                                         const isPast = now > endTime;
                                         const isCurrent = now >= startTime && now <= endTime;
+                                        const isNext = index === nextClassIndex;
                                         
-                                        let progressPercent = 0;
-                                        if (isCurrent) {
-                                            const totalDuration = endTime.getTime() - startTime.getTime();
-                                            if (totalDuration > 0) {
-                                                const elapsed = now.getTime() - startTime.getTime();
-                                                progressPercent = Math.min(100, (elapsed / totalDuration) * 100);
-                                            }
-                                        }
-                                        
-                                        const radius = 24;
-                                        const strokeWidth = 3.5;
-                                        const normalizedRadius = radius - strokeWidth / 2;
-                                        const circumference = normalizedRadius * 2 * Math.PI;
-                                        const strokeDashoffset = isCurrent ? circumference - (progressPercent / 100) * circumference : 0;
-                                        
-                                        const containerClasses = `relative flex items-center gap-4 p-4 bg-gray-100 dark:bg-black/20 rounded-xl transition-all duration-300 overflow-hidden ${isPast ? 'opacity-60' : 'hover:bg-gray-200 dark:hover:bg-black/30'} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20 animate-pulse-fast' : ''}`;
+                                        const containerClasses = `relative flex items-center gap-4 p-4 bg-gray-100 dark:bg-black/20 rounded-xl transition-all duration-300 overflow-hidden ${isPast ? 'opacity-60' : 'hover:bg-gray-200 dark:hover:bg-black/30'} ${isCurrent ? 'border-2 border-sky-500 dark:border-purple-500 shadow-lg shadow-sky-500/20 dark:shadow-purple-500/20 animate-pulse-fast' : ''} ${isNext ? 'border-2 border-amber-500/50 dark:border-amber-400/50' : ''}`;
 
                                         return (
                                             <div key={item.id} className={containerClasses}>
-                                                <div className="relative flex-shrink-0 w-12 h-12 flex items-center justify-center">
-                                                    <svg width={radius * 2} height={radius * 2} className="absolute inset-0">
-                                                        <circle className="text-gray-300 dark:text-white/10" stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" r={normalizedRadius} cx={radius} cy={radius}/>
-                                                    </svg>
-                                                    {isCurrent && (
-                                                        <svg width={radius * 2} height={radius * 2} className="absolute inset-0">
-                                                            <circle
-                                                                className="text-sky-500 dark:text-purple-400" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" fill="transparent" r={normalizedRadius} cx={radius} cy={radius}
-                                                                style={{ strokeDasharray: circumference, strokeDashoffset, transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 1s linear' }}
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                    {isPast && (<CheckCircleIcon className="w-7 h-7 text-green-500" />)}
-                                                    {!isCurrent && !isPast && (<ClockIcon className="w-6 h-6 text-gray-400" />)}
-                                                    <span className={`font-bold text-xs z-10 ${isPast ? 'hidden' : ''} ${isCurrent ? 'text-gray-800 dark:text-gray-200' : 'text-gray-800 dark:text-gray-200'}`}>
-                                                        {item.start_time.slice(0, 5)}
-                                                    </span>
+                                                <div className="relative flex-shrink-0 w-16 h-12 flex items-center justify-center">
+                                                    <div className={`absolute top-1/2 left-0 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center ${isPast ? 'bg-gray-200 dark:bg-white/5' : isCurrent ? 'bg-sky-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-white/10'}`}>
+                                                        {isPast ? <CheckCircleIcon className="w-7 h-7 text-green-500" /> : <ClockIcon className={`w-6 h-6 ${isCurrent ? 'text-sky-600 dark:text-purple-300' : 'text-gray-400'}`} />}
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <p className="font-semibold text-gray-900 dark:text-white">{item.subject}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Kelas {item.className} &bull; Selesai {item.end_time.slice(0, 5)}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Kelas {item.className} &bull; {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</p>
                                                 </div>
-                                                {isCurrent && (
-                                                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-sky-900/20 to-transparent dark:from-purple-900/30 to-transparent opacity-50 pointer-events-none" style={{ zIndex: 0, width: `${progressPercent}%`, transition: 'width 1s linear' }}/>
-                                                )}
+                                                {isNext && <div className="absolute top-1/2 -translate-y-1/2 right-4 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-400/10 px-2 py-1 rounded-full">BERIKUTNYA</div>}
                                             </div>
                                         );
                                     }) : <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Tidak ada jadwal hari ini.</p>}

@@ -42,8 +42,13 @@
               // Animation for portal sidebar
               'pulse-border-glow': 'pulse-border-glow 2.5s infinite ease-in-out',
               'aurora-glow': 'aurora-glow 20s infinite linear alternate',
+              // New animation for modal border
+              'border-spin': 'border-spin 4s linear infinite',
             },
             keyframes: {
+              'border-spin': {
+                  '100%': { transform: 'rotate(360deg)' },
+              },
               'aurora-glow': {
                 '0%': { transform: 'translateX(-50%) translateY(-50%) rotate(0deg)', opacity: 0.3 },
                 '50%': { transform: 'translateX(-50%) translateY(-50%) rotate(180deg)', opacity: 0.5 },
@@ -365,10 +370,10 @@
           background: transparent !important;
           color: #000 !important;
         }
-        #printable-slip, #printable-slip * {
+        #printable-slip, #printable-slip *, #printable-area, #printable-area * {
           visibility: visible;
         }
-        #printable-slip {
+        #printable-slip, #printable-area {
           position: fixed;
           left: 50%;
           top: 50%;
@@ -495,6 +500,7 @@
       .cosmic-bg {
         position: relative;
         background-color: #f8fafc; /* Light mode fallback: gray-50 */
+        overflow: hidden;
       }
       .dark .cosmic-bg {
         background-color: #0f172a; /* Dark mode: slate-900 */
@@ -560,6 +566,124 @@
       .schedule-card-rabu { border-left-color: #f59e0b; } /* amber-500 */
       .schedule-card-kamis { border-left-color: #8b5cf6; } /* violet-500 */
       .schedule-card-jumat { border-left-color: #f43f5e; } /* rose-500 */
+
+      /* Holographic Orb - used in Login/Role/Tasks pages */
+        .holographic-orb-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .holographic-orb {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            animation: orb-rotate 30s infinite linear;
+        }
+        @keyframes orb-rotate {
+            from { transform: rotateY(0deg) rotateX(10deg); }
+            to { transform: rotateY(360deg) rotateX(10deg); }
+        }
+        .orb-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 150%;
+            height: 150%;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(167, 139, 250, 0.2) 0%, rgba(167, 139, 250, 0) 60%);
+            filter: blur(20px);
+        }
+        .dark .orb-glow {
+             background: radial-gradient(circle, rgba(124, 58, 237, 0.4) 0%, rgba(124, 58, 237, 0) 60%);
+             filter: blur(30px);
+        }
+        .orb-core {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(129, 140, 248, 0.5), transparent 60%);
+            animation: core-pulse 8s infinite ease-in-out alternate;
+            opacity: 0.6;
+        }
+        @keyframes core-pulse {
+            to { transform: scale(1.05); opacity: 0.8; }
+        }
+        .orb-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid;
+            border-radius: 50%;
+            opacity: 0.3;
+        }
+        .orb-ring-1 {
+            border-color: #818cf8; /* indigo-400 */
+            transform: rotateX(70deg) scale(1.1);
+            animation: ring-spin-1 12s infinite linear;
+        }
+        .orb-ring-2 {
+            border-color: #60a5fa; /* blue-400 */
+            transform: rotateY(70deg) scale(1.2);
+            animation: ring-spin-2 15s infinite linear reverse;
+        }
+        @keyframes ring-spin-1 {
+            from { transform: rotateZ(0deg) rotateX(70deg) scale(1.1); }
+            to { transform: rotateZ(360deg) rotateX(70deg) scale(1.1); }
+        }
+        @keyframes ring-spin-2 {
+            from { transform: rotateZ(0deg) rotateY(70deg) scale(1.2); }
+            to { transform: rotateZ(360deg) rotateY(70deg) scale(1.2); }
+        }
+
+      /* New Modal Glow Border */
+      .modal-glow-border {
+          position: relative;
+          z-index: 1;
+      }
+      .modal-glow-border::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-radius: 18px; /* Slightly larger than the modal's border-radius */
+          border: 1px solid transparent;
+          background: conic-gradient(from var(--angle), #8b5cf6, #3b82f6, #ec4899, #8b5cf6) border-box;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          animation: border-spin 4s linear infinite;
+          opacity: 0.8;
+          pointer-events: none;
+      }
+      @property --angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+      }
+      
+      /* Dashboard schedule timeline */
+      .timeline-connector {
+        position: absolute;
+        top: 3.5rem; /* Start below the first item */
+        bottom: 0.5rem; /* End above the last item */
+        left: 2rem; /* Aligned with the icon centers */
+        width: 2px;
+        background-color: rgba(255, 255, 255, 0.1);
+        transform: translateX(-1px);
+      }
     </style>
     <script>
       // Theme management script to prevent flash of wrong theme

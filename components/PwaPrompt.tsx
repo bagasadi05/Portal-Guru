@@ -65,7 +65,7 @@ const PwaPrompt: React.FC = () => {
 
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg p-4 z-[60] animate-fade-in-up">
-      <div className="bg-gray-800/80 backdrop-blur-md text-white rounded-xl shadow-2xl p-4 flex items-center gap-4 border border-gray-700/50">
+      <div className="bg-gray-900/80 backdrop-blur-lg text-white rounded-2xl shadow-2xl p-4 flex items-center gap-4 border border-white/10">
         <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
           <DownloadCloudIcon className="w-6 h-6"/>
         </div>

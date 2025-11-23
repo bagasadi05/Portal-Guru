@@ -441,7 +441,7 @@ const AttendancePage: React.FC = () => {
     };
 
     return (
-        <div className="w-full h-full p-4 sm:p-6 md:p-8 flex flex-col max-w-7xl mx-auto">
+        <div className="w-full h-full p-4 sm:p-6 md:p-8 flex flex-col">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Pendataan Absensi</h1>
@@ -484,15 +484,15 @@ const AttendancePage: React.FC = () => {
                         {students.map((student, index) => {
                             const record = attendanceRecords[student.id];
                             return (
-                                <div key={student.id} onClick={() => handleQuickMark(student.id)} className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5">
-                                    <div className="flex items-center gap-4 col-span-1 md:col-span-1">
+                                <div key={student.id} onClick={() => handleQuickMark(student.id)} className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5">
+                                    <div className="flex items-center gap-4 w-full md:w-auto">
                                         <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-6 text-center">{index + 1}.</span>
                                         <img src={student.avatar_url} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
                                         <p className="font-semibold text-gray-900 dark:text-white">{student.name}</p>
                                     </div>
 
-                                    <div className="col-span-1 md:col-span-2 flex flex-col md:flex-row items-stretch md:items-center gap-2 md:pl-10">
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-grow">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:min-w-[420px]">
                                             {statusOptions.map(opt => {
                                                 const btnStyles = buttonStatusStyles[opt.color];
                                                 return (
@@ -504,7 +504,7 @@ const AttendancePage: React.FC = () => {
                                             )})}
                                         </div>
                                         {(record?.status === AttendanceStatus.Izin || record?.status === AttendanceStatus.Sakit) &&
-                                            <div className="relative flex-grow md:max-w-xs animate-fade-in">
+                                            <div className="relative w-full sm:w-auto sm:flex-grow sm:max-w-xs animate-fade-in">
                                                 <PencilIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
                                                 <Input value={record.note || ''} onChange={(e) => handleNoteChange(student.id, e.target.value)} onClick={e => e.stopPropagation()} placeholder="Tambah catatan..." className="pl-9 h-10"/>
                                             </div>

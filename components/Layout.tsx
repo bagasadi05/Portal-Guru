@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { HomeIcon, UsersIcon, CalendarIcon, ClipboardIcon, LogoutIcon, SettingsIcon, GraduationCapIcon, SearchIcon, CheckSquareIcon, BrainCircuitIcon, ClipboardPenIcon, DownloadCloudIcon } from './Icons';
+import { HomeIcon, UsersIcon, CalendarIcon, ClipboardIcon, LogoutIcon, SettingsIcon, GraduationCapIcon, SearchIcon, CheckSquareIcon, BrainCircuitIcon, ClipboardPenIcon } from './Icons';
 import ThemeToggle from './ui/ThemeToggle';
 import GlobalSearch from './ui/GlobalSearch';
 import { Button } from './ui/Button';
@@ -17,15 +17,6 @@ const navItems = [
   { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
   { href: '/input-massal', label: 'Input Massal', icon: ClipboardPenIcon },
   { href: '/pengaturan', label: 'Pengaturan', icon: SettingsIcon },
-];
-
-// New items for the bottom navigation bar.
-const bottomNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
-  { href: '/absensi', label: 'Absensi', icon: ClipboardIcon },
-  { href: '/siswa', label: 'Siswa', icon: UsersIcon },
-  { href: '/jadwal', label: 'Jadwal', icon: CalendarIcon },
-  { href: '/tugas', label: 'Tugas', icon: CheckSquareIcon },
 ];
 
 interface SidebarProps {
@@ -132,27 +123,14 @@ const Header: React.FC<{ onSearchClick: () => void; }> = ({ onSearchClick }) => 
     return (
         <header className="h-16 bg-white/80 dark:bg-gray-950/70 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
              <div className="flex items-center gap-3">
-                {/* App logo/name on mobile */}
-                <Link to="/dashboard" className="md:hidden flex items-center gap-2">
-                    <div className="w-8 h-8 bg-sky-600 dark:bg-purple-600 rounded-lg flex items-center justify-center">
-                        <GraduationCapIcon className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-bold text-lg text-gray-800 dark:text-gray-200">Guru Cerdas</span>
-                </Link>
-
                 {/* Desktop search button */}
-                <Button variant="outline" onClick={onSearchClick} className="hidden md:flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <Button variant="outline" onClick={onSearchClick} className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                     <SearchIcon className="w-4 h-4" />
                     Cari Siswa...
                 </Button>
             </div>
             
             <div className="flex items-center gap-3">
-                {/* Mobile Search Button */}
-                <Button variant="ghost" size="icon" onClick={onSearchClick} className="md:hidden">
-                    <SearchIcon className="w-5 h-5" />
-                </Button>
-
                 <ThemeToggle />
 
                 <div className="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
@@ -191,32 +169,6 @@ const Header: React.FC<{ onSearchClick: () => void; }> = ({ onSearchClick }) => 
                 </div>
             </div>
         </header>
-    );
-};
-
-const BottomNavBar: React.FC = () => {
-    return (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-t border-gray-200/50 dark:border-white/10 z-30">
-            <div className="flex justify-around items-center h-full">
-                {bottomNavItems.map(item => (
-                    <NavLink
-                        key={item.href}
-                        to={item.href}
-                        end={item.href === '/dashboard'}
-                        className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${
-                            isActive
-                                ? 'text-sky-600 dark:text-purple-400'
-                                : 'text-gray-500 dark:text-gray-400 hover:text-sky-500 dark:hover:text-purple-300'
-                        }`}
-                    >
-                        <div className="relative w-6 h-6">
-                            <item.icon className="w-6 h-6" />
-                        </div>
-                        <span className="text-xs font-medium mt-1">{item.label}</span>
-                    </NavLink>
-                ))}
-            </div>
-        </nav>
     );
 };
 
@@ -262,18 +214,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             )}
 
             {/* Desktop sidebar */}
-            <div className="hidden md:flex">
+            <div className="flex">
                 <Sidebar />
             </div>
 
             <div className="flex flex-col flex-1 w-full overflow-hidden">
                 <Header onSearchClick={() => setIsSearchOpen(true)} />
-                <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+                <main className="flex-1 overflow-y-auto">
                     {children}
                 </main>
             </div>
-
-            <BottomNavBar />
 
             <GlobalSearch isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} />
             <AiChatAssistant isOpen={isAiChatOpen} setIsOpen={setIsAiChatOpen} />
